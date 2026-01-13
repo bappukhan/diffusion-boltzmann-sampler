@@ -226,3 +226,56 @@ class TestScoreMatchingLossClass:
         loss_fn.weighting = "invalid"  # Force invalid weighting
         with pytest.raises(ValueError):
             loss_fn(small_score_network, sample_batch)
+
+
+# ============================================================================
+# Trainer Tests
+# ============================================================================
+
+
+class TestTrainerBasic:
+    """Basic tests for Trainer class."""
+
+    def test_trainer_initialization(self, small_score_network, diffusion):
+        """Trainer initializes with correct attributes."""
+        trainer = Trainer(small_score_network, diffusion, learning_rate=1e-3)
+        assert trainer.model is not None
+        assert trainer.diffusion is not None
+        assert trainer.optimizer is not None
+
+    def test_trainer_default_diffusion(self, small_score_network):
+        """Trainer creates default diffusion if not provided."""
+        trainer = Trainer(small_score_network)
+        assert trainer.diffusion is not None
+
+    def test_train_step_returns_loss(self, trainer, sample_batch):
+        """Train step returns loss value."""
+        loss = trainer.train_step(sample_batch)
+        assert isinstance(loss, float)
+        assert loss > 0
+
+    def test_train_epoch_updates_history(self, trainer, sample_dataloader):
+        """Train epoch updates loss history."""
+        initial_len = len(trainer.history["train_loss"])
+        trainer.train_epoch(sample_dataloader)
+        assert len(trainer.history["train_loss"]) == initial_len + 1
+
+    def test_evaluate_returns_loss(self, trainer, sample_dataloader):
+        """Evaluate returns validation loss."""
+        loss = trainer.evaluate(sample_dataloader)
+        assert isinstance(loss, float)
+        assert loss > 0
+
+    def test_train_multiple_epochs(self, trainer, sample_dataloader):
+        """Training for multiple epochs works."""
+        history = trainer.train(sample_dataloader, epochs=3, verbose=False)
+        assert len(history["train_loss"]) == 3
+
+    def test_loss_weighting_option(self, small_score_network, diffusion):
+        """Trainer accepts loss_weighting parameter."""
+        trainer = Trainer(
+            small_score_network,
+            diffusion,
+            loss_weighting="sigma",
+        )
+        assert trainer.loss_weighting == "sigma"
