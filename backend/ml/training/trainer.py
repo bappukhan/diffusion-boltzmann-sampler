@@ -14,6 +14,63 @@ from ..samplers.mcmc import MetropolisHastings
 from .losses import ScoreMatchingLoss, WeightingType
 
 
+class EMA:
+    """Exponential Moving Average of model parameters.
+
+    Maintains a shadow copy of model parameters that is updated
+    with exponential moving average during training.
+    """
+
+    def __init__(self, model: nn.Module, decay: float = 0.999):
+        """Initialize EMA.
+
+        Args:
+            model: Model to track
+            decay: EMA decay rate (default: 0.999)
+        """
+        self.model = model
+        self.decay = decay
+        self.shadow = {}
+        self.backup = {}
+
+        # Initialize shadow parameters
+        for name, param in model.named_parameters():
+            if param.requires_grad:
+                self.shadow[name] = param.data.clone()
+
+    @torch.no_grad()
+    def update(self):
+        """Update shadow parameters with EMA."""
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                self.shadow[name] = (
+                    self.decay * self.shadow[name] + (1 - self.decay) * param.data
+                )
+
+    def apply_shadow(self):
+        """Apply shadow parameters to model (for evaluation)."""
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                self.backup[name] = param.data.clone()
+                param.data = self.shadow[name]
+
+    def restore(self):
+        """Restore original parameters after evaluation."""
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                param.data = self.backup[name]
+        self.backup = {}
+
+    def state_dict(self) -> Dict:
+        """Return EMA state for checkpointing."""
+        return {"shadow": self.shadow, "decay": self.decay}
+
+    def load_state_dict(self, state_dict: Dict):
+        """Load EMA state from checkpoint."""
+        self.shadow = state_dict["shadow"]
+        self.decay = state_dict.get("decay", self.decay)
+
+
 class Trainer:
     """Denoising score matching trainer for Ising model."""
 
