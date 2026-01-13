@@ -6,6 +6,11 @@ from typing import Tuple, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from .noise_schedule import NoiseSchedule
 
+# Numerical stability constants
+EPS = 1e-8  # Prevent division by zero
+MIN_SIGMA = 1e-4  # Minimum sigma for numerical stability
+MAX_BETA = 500.0  # Maximum beta to prevent instability
+
 
 class DiffusionProcess:
     """Variance Preserving (VP) Stochastic Differential Equation diffusion.
@@ -33,6 +38,10 @@ class DiffusionProcess:
         self.beta_max = beta_max
         self._schedule = schedule
 
+    def _clamp_time(self, t: torch.Tensor) -> torch.Tensor:
+        """Clamp time values to valid range [0, 1] for numerical stability."""
+        return torch.clamp(t, min=0.0, max=1.0)
+
     def beta(self, t: torch.Tensor) -> torch.Tensor:
         """Compute noise rate β(t) at time t.
 
@@ -40,11 +49,14 @@ class DiffusionProcess:
             t: Time values in [0, 1]
 
         Returns:
-            β(t) values
+            β(t) values, clamped for numerical stability
         """
+        t = self._clamp_time(t)
         if self._schedule is not None:
-            return self._schedule.beta(t)
-        return self.beta_min + t * (self.beta_max - self.beta_min)
+            beta = self._schedule.beta(t)
+        else:
+            beta = self.beta_min + t * (self.beta_max - self.beta_min)
+        return torch.clamp(beta, min=0.0, max=MAX_BETA)
 
     def noise_level(self, t: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """Compute signal and noise coefficients at time t.
@@ -56,19 +68,24 @@ class DiffusionProcess:
             t: Time values in [0, 1]
 
         Returns:
-            (α_t, σ_t) coefficients
+            (α_t, σ_t) coefficients with numerical stability guarantees
         """
+        t = self._clamp_time(t)
+
         if self._schedule is not None:
-            return self._schedule.noise_level(t)
+            alpha_t, sigma_t = self._schedule.noise_level(t)
+        else:
+            # Default linear schedule: Integral of beta(s) from 0 to t
+            integral = self.beta_min * t + 0.5 * (self.beta_max - self.beta_min) * t**2
 
-        # Default linear schedule: Integral of beta(s) from 0 to t
-        integral = self.beta_min * t + 0.5 * (self.beta_max - self.beta_min) * t**2
+            # α_t = exp(-0.5 ∫β(s)ds)
+            alpha_t = torch.exp(-0.5 * integral)
 
-        # α_t = exp(-0.5 ∫β(s)ds)
-        alpha_t = torch.exp(-0.5 * integral)
+            # σ_t = √(1 - α_t²) for variance-preserving
+            sigma_t = torch.sqrt(torch.clamp(1 - alpha_t**2, min=EPS))
 
-        # σ_t = √(1 - α_t²) for variance-preserving
-        sigma_t = torch.sqrt(1 - alpha_t**2 + 1e-8)
+        # Ensure minimum sigma for numerical stability
+        sigma_t = torch.clamp(sigma_t, min=MIN_SIGMA)
 
         return alpha_t, sigma_t
 
@@ -110,7 +127,7 @@ class DiffusionProcess:
         Returns:
             Target score
         """
-        return -noise / (sigma_t + 1e-8)
+        return -noise / (sigma_t + EPS)
 
     def reverse_step(
         self,
@@ -178,7 +195,7 @@ class DiffusionProcess:
         sigma_t = sigma_t[:, None, None, None]
 
         # Target score is -noise/σ_t
-        score_target = -noise / (sigma_t + 1e-8)
+        score_target = -noise / (sigma_t + EPS)
 
         # Compute per-sample loss
         if loss_type == "l2":
