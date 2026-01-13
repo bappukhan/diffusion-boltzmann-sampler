@@ -69,3 +69,40 @@ class TestMetropolisHastingsStep:
         spins_after = mcmc_sampler.step(spins_before.clone())
         diff = (spins_before != spins_after).sum()
         assert diff <= 1
+
+
+class TestEnergyLoweringAcceptance:
+    """Tests for energy-lowering move acceptance (always accepted)."""
+
+    def test_energy_lowering_move_accepted(self, ising_model):
+        """Energy-lowering moves should always be accepted at any temperature."""
+        # Create checkerboard (high energy state)
+        spins = torch.ones(8, 8)
+        spins[::2, 1::2] = -1
+        spins[1::2, ::2] = -1
+
+        # At T=0, only energy-lowering moves are accepted
+        sampler = MetropolisHastings(ising_model, temperature=0.01)
+
+        # Track energy over many steps
+        initial_energy = ising_model.energy(spins).item()
+        for _ in range(1000):
+            spins = sampler.step(spins)
+            current_energy = ising_model.energy(spins).item()
+            # Energy should never increase significantly at low T
+            assert current_energy <= initial_energy + 1e-6
+
+    def test_low_temperature_converges_to_ground_state(self, ising_model):
+        """At very low temperature, system should converge to ground state."""
+        # Start from random configuration
+        spins = ising_model.random_configuration(batch_size=1).squeeze(0)
+
+        sampler = MetropolisHastings(ising_model, temperature=0.1)
+
+        # Run many sweeps
+        for _ in range(200):
+            spins = sampler.sweep(spins)
+
+        # Should be close to ground state (all +1 or all -1)
+        mag = abs(ising_model.magnetization(spins).item())
+        assert mag > 0.9, f"Expected |M| > 0.9, got {mag}"
