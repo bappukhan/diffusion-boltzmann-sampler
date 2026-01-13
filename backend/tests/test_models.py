@@ -336,3 +336,53 @@ class TestDiffusionProcessForward:
         diff_low = (x_t_low - x_0).abs().mean()
         diff_high = (x_t_high - x_0).abs().mean()
         assert diff_high > diff_low
+
+
+# ============================================================================
+# Noise Level Consistency Tests
+# ============================================================================
+
+
+class TestNoiseLevelConsistency:
+    """Tests for variance preservation and noise level properties."""
+
+    def test_variance_preservation(self, diffusion):
+        """α² + σ² should be approximately 1 (variance preserving)."""
+        t = torch.linspace(0.01, 0.99, 50)
+        alpha_t, sigma_t = diffusion.noise_level(t)
+        var = alpha_t**2 + sigma_t**2
+        assert torch.allclose(var, torch.ones_like(var), atol=0.05)
+
+    def test_alpha_decreases_with_time(self, diffusion):
+        """Signal coefficient α should decrease with time."""
+        t = torch.linspace(0, 1, 11)
+        alpha_t, _ = diffusion.noise_level(t)
+        # Alpha should be monotonically decreasing
+        for i in range(len(t) - 1):
+            assert alpha_t[i] >= alpha_t[i + 1]
+
+    def test_sigma_increases_with_time(self, diffusion):
+        """Noise coefficient σ should increase with time."""
+        t = torch.linspace(0, 1, 11)
+        _, sigma_t = diffusion.noise_level(t)
+        # Sigma should be monotonically increasing
+        for i in range(len(t) - 1):
+            assert sigma_t[i] <= sigma_t[i + 1]
+
+    def test_alpha_at_boundaries(self, diffusion):
+        """α should be ~1 at t=0 and small at t=1."""
+        t_zero = torch.tensor([0.0])
+        t_one = torch.tensor([1.0])
+        alpha_0, _ = diffusion.noise_level(t_zero)
+        alpha_1, _ = diffusion.noise_level(t_one)
+        assert alpha_0.item() > 0.99
+        assert alpha_1.item() < 0.1
+
+    def test_sigma_at_boundaries(self, diffusion):
+        """σ should be small at t=0 and ~1 at t=1."""
+        t_zero = torch.tensor([0.0])
+        t_one = torch.tensor([1.0])
+        _, sigma_0 = diffusion.noise_level(t_zero)
+        _, sigma_1 = diffusion.noise_level(t_one)
+        assert sigma_0.item() < 0.1
+        assert sigma_1.item() > 0.99
