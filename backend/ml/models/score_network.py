@@ -41,6 +41,62 @@ class SinusoidalTimeEmbedding(nn.Module):
         return embeddings
 
 
+class SelfAttention(nn.Module):
+    """Self-attention module for capturing long-range dependencies.
+
+    Uses multi-head attention with residual connection and layer norm.
+    """
+
+    def __init__(self, channels: int, num_heads: int = 4):
+        """Initialize self-attention.
+
+        Args:
+            channels: Number of input/output channels
+            num_heads: Number of attention heads
+        """
+        super().__init__()
+        self.channels = channels
+        self.num_heads = num_heads
+        self.head_dim = channels // num_heads
+
+        assert channels % num_heads == 0, "channels must be divisible by num_heads"
+
+        self.norm = nn.GroupNorm(min(8, channels), channels)
+        self.qkv = nn.Conv2d(channels, channels * 3, 1)
+        self.proj = nn.Conv2d(channels, channels, 1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply self-attention.
+
+        Args:
+            x: Input tensor (batch, channels, height, width)
+
+        Returns:
+            Output tensor with same shape
+        """
+        batch, channels, height, width = x.shape
+        residual = x
+
+        # Normalize and compute Q, K, V
+        x = self.norm(x)
+        qkv = self.qkv(x)
+        qkv = qkv.reshape(batch, 3, self.num_heads, self.head_dim, height * width)
+        q, k, v = qkv[:, 0], qkv[:, 1], qkv[:, 2]
+
+        # Attention: softmax(QK^T / sqrt(d)) * V
+        scale = self.head_dim ** -0.5
+        attn = torch.einsum("bnci,bncj->bnij", q, k) * scale
+        attn = torch.softmax(attn, dim=-1)
+
+        # Apply attention to values
+        out = torch.einsum("bnij,bncj->bnci", attn, v)
+        out = out.reshape(batch, channels, height, width)
+
+        # Project and residual
+        out = self.proj(out)
+        return out + residual
+
+
 class ConvBlock(nn.Module):
     """Convolutional block with GroupNorm, SiLU, and time conditioning."""
 
