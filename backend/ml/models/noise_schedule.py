@@ -5,6 +5,7 @@ during the forward diffusion process.
 """
 
 import torch
+import math
 from abc import ABC, abstractmethod
 from typing import Tuple
 
@@ -93,3 +94,51 @@ class LinearNoiseSchedule(NoiseSchedule):
         ∫₀ᵗ β(s) ds = β_min * t + 0.5 * (β_max - β_min) * t²
         """
         return self.beta_min * t + 0.5 * (self.beta_max - self.beta_min) * t**2
+
+
+class CosineNoiseSchedule(NoiseSchedule):
+    """Cosine noise schedule from 'Improved Denoising Diffusion' paper.
+
+    Uses a cosine schedule for α_t, which provides smoother transitions
+    and better sample quality, especially for images.
+
+    α_t = cos(π/2 * (t + s) / (1 + s))² / cos(π/2 * s / (1 + s))²
+
+    where s is a small offset to prevent singularities.
+    """
+
+    def __init__(self, s: float = 0.008):
+        """Initialize cosine schedule.
+
+        Args:
+            s: Small offset to prevent β from being too large near t=1
+        """
+        self.s = s
+        # Precompute normalization factor
+        self._alpha_0 = self._f(torch.tensor(0.0)).item()
+
+    def _f(self, t: torch.Tensor) -> torch.Tensor:
+        """Compute f(t) = cos(π/2 * (t + s) / (1 + s))²."""
+        angle = math.pi / 2 * (t + self.s) / (1 + self.s)
+        return torch.cos(angle) ** 2
+
+    def noise_level(self, t: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Compute α_t and σ_t directly from cosine schedule."""
+        alpha_t_sq = self._f(t) / self._alpha_0
+        alpha_t = torch.sqrt(torch.clamp(alpha_t_sq, min=1e-8, max=1.0))
+        sigma_t = torch.sqrt(torch.clamp(1 - alpha_t_sq, min=1e-8))
+        return alpha_t, sigma_t
+
+    def beta(self, t: torch.Tensor) -> torch.Tensor:
+        """Compute β(t) from the derivative of log α_t².
+
+        β(t) = -d/dt log α_t² = -2 d/dt log α_t
+        """
+        # Use finite difference for numerical stability
+        eps = 1e-4
+        alpha_t, _ = self.noise_level(t)
+        alpha_t_eps, _ = self.noise_level(t + eps)
+
+        # β ≈ -2 * (log α_{t+ε} - log α_t) / ε
+        beta_t = -2 * (torch.log(alpha_t_eps + 1e-8) - torch.log(alpha_t + 1e-8)) / eps
+        return torch.clamp(beta_t, min=0.0, max=100.0)
