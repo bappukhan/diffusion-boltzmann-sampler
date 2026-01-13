@@ -142,3 +142,39 @@ class CosineNoiseSchedule(NoiseSchedule):
         # β ≈ -2 * (log α_{t+ε} - log α_t) / ε
         beta_t = -2 * (torch.log(alpha_t_eps + 1e-8) - torch.log(alpha_t + 1e-8)) / eps
         return torch.clamp(beta_t, min=0.0, max=100.0)
+
+
+class SigmoidNoiseSchedule(NoiseSchedule):
+    """Sigmoid noise schedule with configurable steepness.
+
+    β(t) = sigmoid(start + (end - start) * t) * (β_max - β_min) + β_min
+
+    This schedule provides a smooth S-curve transition that can be adjusted
+    to spend more or less time in low/high noise regimes.
+    """
+
+    def __init__(
+        self,
+        beta_min: float = 0.1,
+        beta_max: float = 20.0,
+        start: float = -6.0,
+        end: float = 6.0,
+    ):
+        """Initialize sigmoid schedule.
+
+        Args:
+            beta_min: Minimum noise rate
+            beta_max: Maximum noise rate
+            start: Sigmoid input at t=0 (more negative = slower start)
+            end: Sigmoid input at t=1 (more positive = faster end)
+        """
+        self.beta_min = beta_min
+        self.beta_max = beta_max
+        self.start = start
+        self.end = end
+
+    def beta(self, t: torch.Tensor) -> torch.Tensor:
+        """Compute sigmoid-based β(t)."""
+        sigmoid_input = self.start + (self.end - self.start) * t
+        sigmoid_val = torch.sigmoid(sigmoid_input)
+        return self.beta_min + (self.beta_max - self.beta_min) * sigmoid_val
