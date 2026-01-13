@@ -298,3 +298,51 @@ class TestSampleMethod:
         mag_tensor = torch.tensor(mags)
         std = mag_tensor.std().item()
         assert std > 0.01, "Expected some variation between samples"
+
+
+class TestSampleWithTrajectory:
+    """Tests for the sample_with_trajectory generator method."""
+
+    def test_trajectory_is_generator(self, mcmc_sampler):
+        """sample_with_trajectory should return a generator."""
+        from types import GeneratorType
+
+        trajectory = mcmc_sampler.sample_with_trajectory(n_steps=5)
+        assert isinstance(trajectory, GeneratorType)
+
+    def test_trajectory_yields_correct_count(self, mcmc_sampler):
+        """Trajectory should yield n_steps + 1 frames (initial + steps)."""
+        n_steps = 10
+        trajectory = list(mcmc_sampler.sample_with_trajectory(n_steps=n_steps))
+        assert len(trajectory) == n_steps + 1  # Initial + n_steps
+
+    def test_trajectory_yields_tensors(self, mcmc_sampler):
+        """Each yielded frame should be a tensor."""
+        for frame in mcmc_sampler.sample_with_trajectory(n_steps=3):
+            assert isinstance(frame, torch.Tensor)
+
+    def test_trajectory_preserves_shape(self, mcmc_sampler, ising_model):
+        """Each frame should have correct shape."""
+        for frame in mcmc_sampler.sample_with_trajectory(n_steps=3):
+            assert frame.shape == (ising_model.size, ising_model.size)
+
+    def test_trajectory_with_initial_config(self, mcmc_sampler, all_up_spins):
+        """Trajectory should use provided initial configuration."""
+        trajectory = list(
+            mcmc_sampler.sample_with_trajectory(n_steps=2, initial=all_up_spins)
+        )
+        # First frame should be the initial config
+        assert torch.allclose(trajectory[0], all_up_spins)
+
+    def test_trajectory_evolves(self, high_temp_sampler, ising_model):
+        """Trajectory should show evolution over time at high T."""
+        frames = list(high_temp_sampler.sample_with_trajectory(n_steps=50))
+
+        # First and last frames should be different
+        first_mag = ising_model.magnetization(frames[0]).item()
+        last_mag = ising_model.magnetization(frames[-1]).item()
+
+        # At high temperature, there should be some change
+        energies = [ising_model.energy(f).item() for f in frames]
+        energy_std = torch.tensor(energies).std().item()
+        assert energy_std > 0, "Expected trajectory evolution"
