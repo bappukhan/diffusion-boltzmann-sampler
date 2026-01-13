@@ -2,6 +2,13 @@
 
 Provides various beta schedules that control the rate of noise addition
 during the forward diffusion process.
+
+Available schedules:
+- LinearNoiseSchedule: Standard linear schedule from DDPM
+- CosineNoiseSchedule: Improved cosine schedule from OpenAI
+- SigmoidNoiseSchedule: Smooth S-curve transition with configurable steepness
+
+Use get_schedule() factory to create schedules by name.
 """
 
 import torch
