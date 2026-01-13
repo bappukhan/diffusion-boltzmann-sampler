@@ -3,6 +3,7 @@ from .correlation import (
     magnetization_distribution,
     autocorrelation_time,
     energy_histogram,
+    compare_distributions,
 )
 
 __all__ = [
@@ -10,4 +11,5 @@ __all__ = [
     "magnetization_distribution",
     "autocorrelation_time",
     "energy_histogram",
+    "compare_distributions",
 ]
