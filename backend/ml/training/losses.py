@@ -17,6 +17,9 @@ EPS = 1e-8
 # Type alias for loss types
 LossType = Literal["l1", "l2", "huber"]
 
+# Type alias for reduction methods
+ReductionType = Literal["mean", "sum", "none"]
+
 
 def compute_loss(
     pred: torch.Tensor,
@@ -47,6 +50,29 @@ def compute_loss(
         return torch.where(abs_diff <= huber_delta, quadratic, linear)
     else:
         raise ValueError(f"Unknown loss type: {loss_type}")
+
+
+def reduce_loss(
+    loss: torch.Tensor,
+    reduction: ReductionType = "mean",
+) -> torch.Tensor:
+    """Reduce loss tensor according to reduction method.
+
+    Args:
+        loss: Element-wise loss tensor
+        reduction: Reduction method ("mean", "sum", or "none")
+
+    Returns:
+        Reduced loss (scalar for mean/sum, original shape for none)
+    """
+    if reduction == "mean":
+        return loss.mean()
+    elif reduction == "sum":
+        return loss.sum()
+    elif reduction == "none":
+        return loss
+    else:
+        raise ValueError(f"Unknown reduction: {reduction}")
 
 
 def denoising_score_matching_loss(
