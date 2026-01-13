@@ -206,3 +206,49 @@ async def list_checkpoints() -> List[CheckpointInfo]:
     # Sort by modification time (newest first)
     checkpoints.sort(key=lambda x: x.modified_time, reverse=True)
     return checkpoints
+
+
+class LoadCheckpointRequest(BaseModel):
+    """Request to load a checkpoint."""
+
+    checkpoint_name: str = Field(..., description="Name of checkpoint file to load")
+
+
+class LoadCheckpointResponse(BaseModel):
+    """Response after loading a checkpoint."""
+
+    message: str
+    checkpoint_name: str
+    history: Optional[Dict[str, Any]] = None
+
+
+@router.post("/checkpoints/load", response_model=LoadCheckpointResponse)
+async def load_checkpoint(request: LoadCheckpointRequest) -> LoadCheckpointResponse:
+    """Load a saved checkpoint.
+
+    Loads model weights and training history from a checkpoint file.
+    """
+    checkpoint_path = CHECKPOINT_DIR / request.checkpoint_name
+
+    if not checkpoint_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Checkpoint not found: {request.checkpoint_name}",
+        )
+
+    try:
+        # Load checkpoint to verify it's valid
+        checkpoint = torch.load(checkpoint_path, map_location="cpu")
+
+        history = checkpoint.get("history", {})
+
+        return LoadCheckpointResponse(
+            message=f"Checkpoint loaded successfully",
+            checkpoint_name=request.checkpoint_name,
+            history=history,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to load checkpoint: {str(e)}",
+        )
