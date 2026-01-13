@@ -1,7 +1,10 @@
 """Diffusion process for score-based generative modeling."""
 
 import torch
-from typing import Tuple
+from typing import Tuple, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .noise_schedule import NoiseSchedule
 
 
 class DiffusionProcess:
@@ -10,18 +13,25 @@ class DiffusionProcess:
     Forward process: dx = -0.5 β(t) x dt + √β(t) dW
     This gradually adds noise to data until it becomes pure Gaussian.
 
-    The noise schedule is linear: β(t) = β_min + t(β_max - β_min)
+    Supports custom noise schedules or defaults to linear schedule.
     """
 
-    def __init__(self, beta_min: float = 0.1, beta_max: float = 20.0):
+    def __init__(
+        self,
+        beta_min: float = 0.1,
+        beta_max: float = 20.0,
+        schedule: Optional["NoiseSchedule"] = None,
+    ):
         """Initialize diffusion process.
 
         Args:
-            beta_min: Minimum noise rate
-            beta_max: Maximum noise rate
+            beta_min: Minimum noise rate (used if schedule is None)
+            beta_max: Maximum noise rate (used if schedule is None)
+            schedule: Custom noise schedule (overrides beta_min/beta_max)
         """
         self.beta_min = beta_min
         self.beta_max = beta_max
+        self._schedule = schedule
 
     def beta(self, t: torch.Tensor) -> torch.Tensor:
         """Compute noise rate β(t) at time t.
@@ -32,6 +42,8 @@ class DiffusionProcess:
         Returns:
             β(t) values
         """
+        if self._schedule is not None:
+            return self._schedule.beta(t)
         return self.beta_min + t * (self.beta_max - self.beta_min)
 
     def noise_level(self, t: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -46,7 +58,10 @@ class DiffusionProcess:
         Returns:
             (α_t, σ_t) coefficients
         """
-        # Integral of beta(s) from 0 to t
+        if self._schedule is not None:
+            return self._schedule.noise_level(t)
+
+        # Default linear schedule: Integral of beta(s) from 0 to t
         integral = self.beta_min * t + 0.5 * (self.beta_max - self.beta_min) * t**2
 
         # α_t = exp(-0.5 ∫β(s)ds)
