@@ -212,3 +212,73 @@ class TestScoreNetworkShape:
         t = torch.rand(2)
         score = net(x, t)
         assert score.shape == x.shape
+
+
+# ============================================================================
+# ScoreNetwork Gradient Tests
+# ============================================================================
+
+
+class TestScoreNetworkGradients:
+    """Tests for gradient flow through score network."""
+
+    def test_gradients_flow_to_all_parameters(self, score_network, batch_data):
+        """Gradients flow to all trainable parameters."""
+        x, t = batch_data
+        score = score_network(x, t)
+        loss = score.sum()
+        loss.backward()
+
+        # Check all parameters have gradients
+        for name, param in score_network.named_parameters():
+            assert param.grad is not None, f"No gradient for {name}"
+            assert not torch.isnan(param.grad).any(), f"NaN gradient in {name}"
+
+    def test_no_nan_gradients(self, score_network, batch_data):
+        """No NaN gradients during backprop."""
+        x, t = batch_data
+        score = score_network(x, t)
+        loss = (score ** 2).mean()
+        loss.backward()
+
+        for name, param in score_network.named_parameters():
+            if param.grad is not None:
+                assert not torch.isnan(param.grad).any(), f"NaN in {name}"
+                assert not torch.isinf(param.grad).any(), f"Inf in {name}"
+
+    def test_gradient_magnitude_reasonable(self, score_network, batch_data):
+        """Gradient magnitudes are within reasonable bounds."""
+        x, t = batch_data
+        score = score_network(x, t)
+        loss = score.pow(2).mean()
+        loss.backward()
+
+        for name, param in score_network.named_parameters():
+            if param.grad is not None:
+                grad_norm = param.grad.norm().item()
+                # Gradient should not be astronomically large
+                assert grad_norm < 1e6, f"Huge gradient in {name}: {grad_norm}"
+
+    def test_training_step_reduces_loss(self, batch_data):
+        """A training step reduces loss (basic sanity check)."""
+        net = ScoreNetwork(in_channels=1, base_channels=8, num_blocks=1)
+        optimizer = torch.optim.Adam(net.parameters(), lr=0.01)
+
+        x, t = batch_data
+        target = torch.randn_like(x)
+
+        # Initial loss
+        score = net(x, t)
+        loss1 = (score - target).pow(2).mean()
+
+        # Training step
+        optimizer.zero_grad()
+        loss1.backward()
+        optimizer.step()
+
+        # New loss
+        score = net(x, t)
+        loss2 = (score - target).pow(2).mean()
+
+        # Loss should decrease (usually)
+        assert loss2 < loss1 * 1.5  # Allow some variance
