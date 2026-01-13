@@ -106,3 +106,51 @@ class TestEnergyLoweringAcceptance:
         # Should be close to ground state (all +1 or all -1)
         mag = abs(ising_model.magnetization(spins).item())
         assert mag > 0.9, f"Expected |M| > 0.9, got {mag}"
+
+
+class TestHighTemperatureAcceptance:
+    """Tests for high temperature behavior (disordered phase)."""
+
+    def test_high_temperature_high_acceptance(self, ising_model):
+        """At high temperature, most moves should be accepted."""
+        sampler = MetropolisHastings(ising_model, temperature=100.0)
+        spins = ising_model.random_configuration(batch_size=1).squeeze(0)
+
+        # Count accepted moves
+        accepted = 0
+        total = 1000
+        for _ in range(total):
+            spins_before = spins.clone()
+            spins = sampler.step(spins)
+            if not torch.allclose(spins, spins_before):
+                accepted += 1
+
+        # At T=100, acceptance should be high (> 40% due to random selection)
+        acceptance_rate = accepted / total
+        assert acceptance_rate > 0.3, f"Expected high acceptance, got {acceptance_rate}"
+
+    def test_high_temperature_disordered_state(self, high_temp_sampler, ising_model):
+        """At high temperature, magnetization should be near zero."""
+        spins = ising_model.random_configuration(batch_size=1).squeeze(0)
+
+        # Run many sweeps at high temperature
+        for _ in range(100):
+            spins = high_temp_sampler.sweep(spins)
+
+        # Should be disordered (|M| ≈ 0)
+        mag = abs(ising_model.magnetization(spins).item())
+        assert mag < 0.5, f"Expected |M| < 0.5 at high T, got {mag}"
+
+    def test_high_temperature_random_walk(self, high_temp_sampler, ising_model):
+        """At high temperature, energy should fluctuate around mean."""
+        spins = ising_model.random_configuration(batch_size=1).squeeze(0)
+
+        energies = []
+        for _ in range(200):
+            spins = high_temp_sampler.sweep(spins)
+            energies.append(ising_model.energy(spins).item())
+
+        # Energy should fluctuate, not monotonically decrease
+        energy_tensor = torch.tensor(energies)
+        std = energy_tensor.std().item()
+        assert std > 1.0, f"Expected energy fluctuations, got std={std}"
