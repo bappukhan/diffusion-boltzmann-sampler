@@ -1,4 +1,4 @@
-from .score_network import ScoreNetwork, SinusoidalTimeEmbedding, ConvBlock
+from .score_network import ScoreNetwork, SinusoidalTimeEmbedding, ConvBlock, SelfAttention
 from .diffusion import DiffusionProcess
 from .noise_schedule import (
     NoiseSchedule,
@@ -12,6 +12,7 @@ __all__ = [
     "ScoreNetwork",
     "SinusoidalTimeEmbedding",
     "ConvBlock",
+    "SelfAttention",
     "DiffusionProcess",
     "NoiseSchedule",
     "LinearNoiseSchedule",
