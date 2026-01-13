@@ -154,6 +154,54 @@ class DiffusionProcess:
 
         return x_next
 
+    def compute_loss(
+        self,
+        score_pred: torch.Tensor,
+        noise: torch.Tensor,
+        t: torch.Tensor,
+        loss_type: str = "l2",
+        weighting: str = "uniform",
+    ) -> torch.Tensor:
+        """Compute score matching loss.
+
+        Args:
+            score_pred: Predicted score s_θ(x_t, t)
+            noise: True noise ε that was added
+            t: Diffusion times
+            loss_type: "l2" for MSE or "l1" for MAE
+            weighting: "uniform" or "snr" (signal-to-noise ratio weighting)
+
+        Returns:
+            Scalar loss value
+        """
+        _, sigma_t = self.noise_level(t)
+        sigma_t = sigma_t[:, None, None, None]
+
+        # Target score is -noise/σ_t
+        score_target = -noise / (sigma_t + 1e-8)
+
+        # Compute per-sample loss
+        if loss_type == "l2":
+            loss = (score_pred - score_target).pow(2)
+        elif loss_type == "l1":
+            loss = (score_pred - score_target).abs()
+        else:
+            raise ValueError(f"Unknown loss type: {loss_type}")
+
+        # Apply weighting
+        if weighting == "uniform":
+            weights = torch.ones_like(sigma_t)
+        elif weighting == "snr":
+            # Weight by σ_t² to balance loss across noise levels
+            weights = sigma_t.pow(2)
+        else:
+            raise ValueError(f"Unknown weighting: {weighting}")
+
+        # Reduce: mean over spatial dims, weighted mean over batch
+        loss = (loss * weights).mean()
+
+        return loss
+
 
 if __name__ == "__main__":
     # Test diffusion process
