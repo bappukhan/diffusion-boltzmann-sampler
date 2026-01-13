@@ -247,3 +247,54 @@ class TestSweepMethod:
         # Magnetization should change significantly
         final_mag = ising_model.magnetization(spins).item()
         assert abs(final_mag - initial_mag) > 0.1, "Expected ergodic exploration"
+
+
+class TestSampleMethod:
+    """Tests for the sample method with burn-in."""
+
+    def test_sample_returns_correct_count(self, mcmc_sampler):
+        """Sample should return requested number of samples."""
+        samples = mcmc_sampler.sample(n_samples=5, n_sweeps=2, burn_in=10)
+        assert samples.shape[0] == 5
+
+    def test_sample_returns_correct_shape(self, mcmc_sampler, ising_model):
+        """Sample should return correct tensor shape."""
+        samples = mcmc_sampler.sample(n_samples=3, n_sweeps=2, burn_in=10)
+        assert samples.shape == (3, ising_model.size, ising_model.size)
+
+    def test_sample_with_initial_config(self, mcmc_sampler, all_up_spins):
+        """Sample should use provided initial configuration."""
+        samples = mcmc_sampler.sample(
+            n_samples=2, n_sweeps=1, burn_in=0, initial=all_up_spins
+        )
+        # First sample should be based on the initial config (with possible changes)
+        assert samples.shape[0] == 2
+
+    def test_sample_burn_in_thermalizes(self, ising_model):
+        """Burn-in should allow system to thermalize."""
+        sampler = MetropolisHastings(ising_model, temperature=5.0)
+
+        # Start from ordered state
+        initial = torch.ones(8, 8)
+
+        # With burn-in, should thermalize to disordered
+        samples = sampler.sample(
+            n_samples=5, n_sweeps=10, burn_in=100, initial=initial
+        )
+
+        # After burn-in at high T, samples should be disordered
+        mags = [abs(ising_model.magnetization(s).item()) for s in samples]
+        avg_mag = sum(mags) / len(mags)
+        assert avg_mag < 0.7, f"Expected thermalized samples, got avg |M|={avg_mag}"
+
+    def test_sample_spacing_decorrelates(self, mcmc_sampler, ising_model):
+        """Spacing between samples (n_sweeps) should reduce correlation."""
+        samples = mcmc_sampler.sample(n_samples=10, n_sweeps=20, burn_in=50)
+
+        # Compute magnetizations
+        mags = [ising_model.magnetization(s).item() for s in samples]
+
+        # Samples should not all be identical
+        mag_tensor = torch.tensor(mags)
+        std = mag_tensor.std().item()
+        assert std > 0.01, "Expected some variation between samples"
