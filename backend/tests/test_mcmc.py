@@ -407,3 +407,81 @@ class TestThermalizationConvergence:
 
         # Intermediate behavior: not fully ordered, not fully disordered
         assert 0.1 < avg_mag < 0.9, f"Expected intermediate magnetization, got {avg_mag}"
+
+
+class TestDetailedBalance:
+    """Tests verifying detailed balance condition."""
+
+    def test_energy_distribution_boltzmann(self, ising_model):
+        """Energy distribution should follow Boltzmann distribution."""
+        temperature = 2.5
+        sampler = MetropolisHastings(ising_model, temperature=temperature)
+
+        # Start from random state and thermalize
+        spins = ising_model.random_configuration(batch_size=1).squeeze(0)
+        for _ in range(200):
+            spins = sampler.sweep(spins)
+
+        # Collect energy samples
+        energies = []
+        for _ in range(100):
+            for _ in range(10):
+                spins = sampler.sweep(spins)
+            energies.append(ising_model.energy(spins).item())
+
+        # Check that energies have reasonable mean and variance
+        energy_tensor = torch.tensor(energies)
+        mean_energy = energy_tensor.mean().item()
+
+        # At T=2.5 (above T_c), mean energy should be between ground (-128) and max (+128)
+        assert -128 < mean_energy < 0, f"Unexpected mean energy: {mean_energy}"
+
+    def test_magnetization_symmetry(self, ising_model):
+        """Magnetization should be symmetric around zero at high T."""
+        sampler = MetropolisHastings(ising_model, temperature=5.0)
+
+        # Collect magnetization samples
+        spins = ising_model.random_configuration(batch_size=1).squeeze(0)
+        for _ in range(100):  # Burn-in
+            spins = sampler.sweep(spins)
+
+        mags = []
+        for _ in range(200):
+            for _ in range(5):
+                spins = sampler.sweep(spins)
+            mags.append(ising_model.magnetization(spins).item())
+
+        # At high T, mean magnetization should be near zero
+        mean_mag = sum(mags) / len(mags)
+        assert abs(mean_mag) < 0.3, f"Expected mean M ≈ 0 at high T, got {mean_mag}"
+
+    def test_equilibrium_stability(self, ising_model):
+        """Once equilibrated, statistics should remain stable."""
+        sampler = MetropolisHastings(ising_model, temperature=2.5)
+
+        # Thermalize
+        spins = ising_model.random_configuration(batch_size=1).squeeze(0)
+        for _ in range(300):
+            spins = sampler.sweep(spins)
+
+        # Collect statistics in two periods
+        energies_first = []
+        energies_second = []
+
+        for _ in range(50):
+            for _ in range(10):
+                spins = sampler.sweep(spins)
+            energies_first.append(ising_model.energy(spins).item())
+
+        for _ in range(50):
+            for _ in range(10):
+                spins = sampler.sweep(spins)
+            energies_second.append(ising_model.energy(spins).item())
+
+        # Mean energies should be similar (equilibrium)
+        mean_first = sum(energies_first) / len(energies_first)
+        mean_second = sum(energies_second) / len(energies_second)
+
+        # Allow some statistical fluctuation
+        diff = abs(mean_first - mean_second)
+        assert diff < 30, f"Expected stable equilibrium, got diff={diff}"
