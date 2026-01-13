@@ -167,3 +167,48 @@ class TestConvBlock:
         t_emb = torch.randn(1, 32)
         _ = block_scaled(x, t_emb)
         _ = block_normal(x, t_emb)
+
+
+# ============================================================================
+# ScoreNetwork Shape Tests
+# ============================================================================
+
+
+class TestScoreNetworkShape:
+    """Tests for score network output shapes."""
+
+    def test_output_shape_matches_input(self, score_network, batch_data):
+        """Score output has same shape as input."""
+        x, t = batch_data
+        score = score_network(x, t)
+        assert score.shape == x.shape
+
+    def test_various_input_sizes(self, score_network):
+        """Network handles various spatial sizes."""
+        for size in [8, 16, 32]:
+            x = torch.randn(2, 1, size, size)
+            t = torch.rand(2)
+            score = score_network(x, t)
+            assert score.shape == x.shape
+
+    def test_single_sample(self, score_network):
+        """Network works with batch size 1."""
+        x = torch.randn(1, 1, 16, 16)
+        t = torch.rand(1)
+        score = score_network(x, t)
+        assert score.shape == x.shape
+
+    def test_large_batch(self, score_network):
+        """Network handles larger batches."""
+        x = torch.randn(16, 1, 16, 16)
+        t = torch.rand(16)
+        score = score_network(x, t)
+        assert score.shape == x.shape
+
+    def test_non_square_input(self):
+        """Network handles non-square inputs (power of 2)."""
+        net = ScoreNetwork(in_channels=1, base_channels=16, num_blocks=2)
+        x = torch.randn(2, 1, 16, 32)
+        t = torch.rand(2)
+        score = net(x, t)
+        assert score.shape == x.shape
