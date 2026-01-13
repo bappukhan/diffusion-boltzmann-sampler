@@ -205,3 +205,45 @@ class TestLowTemperatureRejection:
         current_energy = ising_model.energy(spins).item()
         energy_per_spin = (current_energy - ground_energy) / 64
         assert energy_per_spin < 0.5, f"Expected energy near ground, got +{energy_per_spin} per spin"
+
+
+class TestSweepMethod:
+    """Tests for the sweep method (N² single-spin updates)."""
+
+    def test_sweep_returns_tensor(self, mcmc_sampler, random_spins):
+        """Sweep should return a tensor."""
+        result = mcmc_sampler.sweep(random_spins.clone())
+        assert isinstance(result, torch.Tensor)
+
+    def test_sweep_preserves_shape(self, mcmc_sampler, random_spins):
+        """Sweep should preserve spin configuration shape."""
+        spins = random_spins.clone()
+        result = mcmc_sampler.sweep(spins)
+        assert result.shape == random_spins.shape
+
+    def test_sweep_attempts_many_flips(self, mcmc_sampler, ising_model):
+        """Sweep should attempt N² flip operations."""
+        # At high temperature, we should see many changes after a sweep
+        sampler = MetropolisHastings(ising_model, temperature=10.0)
+        spins_before = ising_model.random_configuration(batch_size=1).squeeze(0)
+        spins_after = sampler.sweep(spins_before.clone())
+
+        # Count differences
+        diff_count = (spins_before != spins_after).sum().item()
+
+        # At T=10, should have many accepted flips
+        n_spins = ising_model.size * ising_model.size
+        assert diff_count > 0, "Expected at least some flips in a sweep"
+
+    def test_sweep_ergodic(self, high_temp_sampler, ising_model):
+        """Multiple sweeps should explore configuration space."""
+        spins = torch.ones(8, 8)  # Start ordered
+        initial_mag = ising_model.magnetization(spins).item()
+
+        # Run many sweeps at high temperature
+        for _ in range(100):
+            spins = high_temp_sampler.sweep(spins)
+
+        # Magnetization should change significantly
+        final_mag = ising_model.magnetization(spins).item()
+        assert abs(final_mag - initial_mag) > 0.1, "Expected ergodic exploration"
