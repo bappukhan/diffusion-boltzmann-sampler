@@ -157,3 +157,53 @@ def snr_weighted_loss(
     loss = (snr_weights_expanded * (pred - target) ** 2).mean()
 
     return loss
+
+
+def importance_sampled_loss(
+    model: nn.Module,
+    x_0: torch.Tensor,
+    diffusion: "DiffusionProcess",
+    t_min: float = 0.001,
+    t_max: float = 0.999,
+) -> torch.Tensor:
+    """Compute DSM loss with importance-sampled time distribution.
+
+    Uses truncated time range to avoid numerical issues at t=0 and t=1,
+    and applies importance sampling weights based on the time distribution.
+
+    Args:
+        model: Score network s_θ(x, t)
+        x_0: Clean samples of shape (batch, channels, height, width)
+        diffusion: Diffusion process for forward noising
+        t_min: Minimum time value (default: 0.001)
+        t_max: Maximum time value (default: 0.999)
+
+    Returns:
+        Scalar loss value
+    """
+    batch_size = x_0.shape[0]
+    device = x_0.device
+
+    # Sample time from truncated uniform distribution
+    t = torch.rand(batch_size, device=device) * (t_max - t_min) + t_min
+
+    # Get noisy samples
+    x_t, noise = diffusion.forward(x_0, t)
+
+    # Get noise level
+    _, sigma_t = diffusion.noise_level(t)
+    sigma_t_expanded = sigma_t[:, None, None, None]
+
+    # Target score
+    target = diffusion.score_target(noise, sigma_t_expanded)
+
+    # Predicted score
+    pred = model(x_t, t)
+
+    # Importance weight for truncated distribution
+    # If sampling uniformly from [t_min, t_max], weight by (t_max - t_min)
+    # to correct for the truncation
+    weight = t_max - t_min
+    loss = weight * ((pred - target) ** 2).mean()
+
+    return loss
