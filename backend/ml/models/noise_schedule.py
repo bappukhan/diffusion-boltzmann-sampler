@@ -64,3 +64,32 @@ class NoiseSchedule(ABC):
             integral = integral + 0.5 * (self.beta(t_i) + self.beta(t_ip1)) * dt
 
         return integral
+
+
+class LinearNoiseSchedule(NoiseSchedule):
+    """Linear noise schedule: β(t) = β_min + t(β_max - β_min).
+
+    This is the standard schedule used in DDPM. The linear schedule
+    provides a simple, interpretable progression from low to high noise.
+    """
+
+    def __init__(self, beta_min: float = 0.1, beta_max: float = 20.0):
+        """Initialize linear schedule.
+
+        Args:
+            beta_min: Minimum noise rate at t=0
+            beta_max: Maximum noise rate at t=1
+        """
+        self.beta_min = beta_min
+        self.beta_max = beta_max
+
+    def beta(self, t: torch.Tensor) -> torch.Tensor:
+        """Compute linear β(t)."""
+        return self.beta_min + t * (self.beta_max - self.beta_min)
+
+    def _integrate_beta(self, t: torch.Tensor) -> torch.Tensor:
+        """Analytic integral of linear schedule.
+
+        ∫₀ᵗ β(s) ds = β_min * t + 0.5 * (β_max - β_min) * t²
+        """
+        return self.beta_min * t + 0.5 * (self.beta_max - self.beta_min) * t**2
