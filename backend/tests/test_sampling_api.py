@@ -143,3 +143,51 @@ class TestMCMCResponseFormat:
         data = response.json()
         assert "lattice_size" in data
         assert data["lattice_size"] == fast_mcmc_params["lattice_size"]
+
+
+class TestRandomEndpoint:
+    """Tests for /sample/random endpoint."""
+
+    def test_random_endpoint_returns_200(self, client: TestClient):
+        """Random endpoint should return 200 OK."""
+        response = client.get("/sample/random")
+        assert response.status_code == 200
+
+    def test_random_endpoint_returns_spins(self, client: TestClient):
+        """Random endpoint should return spins array."""
+        response = client.get("/sample/random")
+        data = response.json()
+        assert "spins" in data
+        assert isinstance(data["spins"], list)
+
+    def test_random_endpoint_default_size(self, client: TestClient):
+        """Random endpoint should use default lattice_size=32."""
+        response = client.get("/sample/random")
+        data = response.json()
+        assert data["lattice_size"] == 32
+        assert len(data["spins"]) == 32
+        assert all(len(row) == 32 for row in data["spins"])
+
+    def test_random_endpoint_custom_size(self, client: TestClient):
+        """Random endpoint should accept custom lattice_size."""
+        response = client.get("/sample/random?lattice_size=16")
+        data = response.json()
+        assert data["lattice_size"] == 16
+        assert len(data["spins"]) == 16
+
+    def test_random_endpoint_includes_observables(self, client: TestClient):
+        """Random endpoint should include energy and magnetization."""
+        response = client.get("/sample/random")
+        data = response.json()
+        assert "energy" in data
+        assert "magnetization" in data
+        assert isinstance(data["energy"], (int, float))
+        assert isinstance(data["magnetization"], (int, float))
+
+    def test_random_spins_are_plus_minus_one(self, client: TestClient):
+        """Random spins should only contain ±1 values."""
+        response = client.get("/sample/random?lattice_size=8")
+        data = response.json()
+        for row in data["spins"]:
+            for spin in row:
+                assert spin in [-1, 1], f"Invalid spin value: {spin}"
