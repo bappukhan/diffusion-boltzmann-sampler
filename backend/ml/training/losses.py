@@ -14,6 +14,40 @@ if TYPE_CHECKING:
 # Numerical stability constant
 EPS = 1e-8
 
+# Type alias for loss types
+LossType = Literal["l1", "l2", "huber"]
+
+
+def compute_loss(
+    pred: torch.Tensor,
+    target: torch.Tensor,
+    loss_type: LossType = "l2",
+    huber_delta: float = 1.0,
+) -> torch.Tensor:
+    """Compute element-wise loss between predictions and targets.
+
+    Args:
+        pred: Predicted values
+        target: Target values
+        loss_type: Type of loss ("l1", "l2", or "huber")
+        huber_delta: Delta parameter for Huber loss
+
+    Returns:
+        Element-wise loss tensor (same shape as input)
+    """
+    if loss_type == "l2":
+        return (pred - target) ** 2
+    elif loss_type == "l1":
+        return torch.abs(pred - target)
+    elif loss_type == "huber":
+        diff = pred - target
+        abs_diff = torch.abs(diff)
+        quadratic = 0.5 * diff ** 2
+        linear = huber_delta * (abs_diff - 0.5 * huber_delta)
+        return torch.where(abs_diff <= huber_delta, quadratic, linear)
+    else:
+        raise ValueError(f"Unknown loss type: {loss_type}")
+
 
 def denoising_score_matching_loss(
     model: nn.Module,
