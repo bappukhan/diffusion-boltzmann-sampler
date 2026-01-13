@@ -69,3 +69,78 @@ def trainer(small_score_network, diffusion):
         diffusion=diffusion,
         learning_rate=1e-3,
     )
+
+
+# ============================================================================
+# Loss Function Tests
+# ============================================================================
+
+
+class TestComputeLoss:
+    """Tests for compute_loss helper function."""
+
+    def test_l2_loss(self):
+        """L2 loss computes squared error."""
+        pred = torch.tensor([1.0, 2.0, 3.0])
+        target = torch.tensor([1.0, 1.0, 1.0])
+        loss = compute_loss(pred, target, loss_type="l2")
+        expected = torch.tensor([0.0, 1.0, 4.0])
+        assert torch.allclose(loss, expected)
+
+    def test_l1_loss(self):
+        """L1 loss computes absolute error."""
+        pred = torch.tensor([1.0, 2.0, 3.0])
+        target = torch.tensor([1.0, 1.0, 1.0])
+        loss = compute_loss(pred, target, loss_type="l1")
+        expected = torch.tensor([0.0, 1.0, 2.0])
+        assert torch.allclose(loss, expected)
+
+    def test_huber_loss_small_error(self):
+        """Huber loss is quadratic for small errors."""
+        pred = torch.tensor([1.0, 1.5])
+        target = torch.tensor([1.0, 1.0])
+        loss = compute_loss(pred, target, loss_type="huber", huber_delta=1.0)
+        # For |diff| <= delta, huber = 0.5 * diff^2
+        expected = torch.tensor([0.0, 0.5 * 0.5**2])
+        assert torch.allclose(loss, expected)
+
+    def test_huber_loss_large_error(self):
+        """Huber loss is linear for large errors."""
+        pred = torch.tensor([3.0])
+        target = torch.tensor([0.0])
+        loss = compute_loss(pred, target, loss_type="huber", huber_delta=1.0)
+        # For |diff| > delta, huber = delta * (|diff| - 0.5 * delta)
+        expected = torch.tensor([1.0 * (3.0 - 0.5 * 1.0)])
+        assert torch.allclose(loss, expected)
+
+    def test_invalid_loss_type(self):
+        """Invalid loss type raises ValueError."""
+        with pytest.raises(ValueError):
+            compute_loss(torch.zeros(1), torch.zeros(1), loss_type="invalid")
+
+
+class TestReduceLoss:
+    """Tests for reduce_loss helper function."""
+
+    def test_mean_reduction(self):
+        """Mean reduction averages all elements."""
+        loss = torch.tensor([1.0, 2.0, 3.0, 4.0])
+        reduced = reduce_loss(loss, reduction="mean")
+        assert reduced.item() == 2.5
+
+    def test_sum_reduction(self):
+        """Sum reduction sums all elements."""
+        loss = torch.tensor([1.0, 2.0, 3.0, 4.0])
+        reduced = reduce_loss(loss, reduction="sum")
+        assert reduced.item() == 10.0
+
+    def test_none_reduction(self):
+        """None reduction returns original tensor."""
+        loss = torch.tensor([1.0, 2.0, 3.0])
+        reduced = reduce_loss(loss, reduction="none")
+        assert torch.equal(reduced, loss)
+
+    def test_invalid_reduction(self):
+        """Invalid reduction raises ValueError."""
+        with pytest.raises(ValueError):
+            reduce_loss(torch.zeros(1), reduction="invalid")
