@@ -253,6 +253,63 @@ class DiffusionSampler:
 
         return x
 
+    def compute_sample_statistics(
+        self,
+        samples: torch.Tensor,
+        ising_model=None,
+    ) -> Dict[str, Any]:
+        """Compute statistics for generated samples.
+
+        Args:
+            samples: Generated samples (batch, [channel,] height, width)
+            ising_model: Optional IsingModel for energy calculations
+
+        Returns:
+            Dictionary with statistics:
+            - mean, std: Sample mean and std
+            - magnetization_mean, magnetization_std: Magnetization statistics
+            - energy_mean, energy_std: Energy statistics (if ising_model provided)
+            - fraction_positive: Fraction of positive spins
+            - sample_diversity: Measure of sample diversity
+        """
+        # Handle channel dimension
+        if len(samples.shape) == 4:
+            samples_2d = samples.squeeze(1)
+        else:
+            samples_2d = samples
+
+        stats = {
+            "mean": samples.mean().item(),
+            "std": samples.std().item(),
+            "min": samples.min().item(),
+            "max": samples.max().item(),
+        }
+
+        # Magnetization statistics
+        magnetization = samples_2d.mean(dim=(-1, -2))
+        stats["magnetization_mean"] = magnetization.mean().item()
+        stats["magnetization_std"] = magnetization.std().item()
+        stats["magnetization_abs_mean"] = magnetization.abs().mean().item()
+
+        # Fraction of positive spins (after discretization)
+        discrete = torch.sign(samples)
+        stats["fraction_positive"] = (discrete > 0).float().mean().item()
+
+        # Sample diversity (variance across batch)
+        if samples.shape[0] > 1:
+            batch_var = samples.var(dim=0).mean().item()
+            stats["sample_diversity"] = batch_var
+        else:
+            stats["sample_diversity"] = 0.0
+
+        # Energy statistics if model provided
+        if ising_model is not None:
+            energies = ising_model.energy_per_spin(samples_2d)
+            stats["energy_mean"] = energies.mean().item()
+            stats["energy_std"] = energies.std().item()
+
+        return stats
+
     def discretize_spins(
         self,
         x: torch.Tensor,
