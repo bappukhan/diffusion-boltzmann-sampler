@@ -146,6 +146,114 @@ def energy_histogram(
     return {"E": bin_centers.tolist(), "P_E": hist.tolist()}
 
 
+def kl_divergence(
+    p: np.ndarray,
+    q: np.ndarray,
+    epsilon: float = 1e-10,
+) -> float:
+    """Compute KL divergence D_KL(P || Q).
+
+    Args:
+        p: Reference distribution (e.g., MCMC samples)
+        q: Approximating distribution (e.g., diffusion samples)
+        epsilon: Small value for numerical stability
+
+    Returns:
+        KL divergence value (non-negative, 0 if identical)
+    """
+    p = np.asarray(p, dtype=np.float64)
+    q = np.asarray(q, dtype=np.float64)
+
+    # Normalize to ensure valid probability distributions
+    p = p / (p.sum() + epsilon)
+    q = q / (q.sum() + epsilon)
+
+    # Add epsilon for numerical stability
+    p = p + epsilon
+    q = q + epsilon
+
+    # Re-normalize
+    p = p / p.sum()
+    q = q / q.sum()
+
+    # Compute KL divergence
+    return float(np.sum(p * np.log(p / q)))
+
+
+def symmetric_kl_divergence(
+    p: np.ndarray,
+    q: np.ndarray,
+    epsilon: float = 1e-10,
+) -> float:
+    """Compute symmetric KL divergence (Jensen-Shannon-like).
+
+    Args:
+        p: First distribution
+        q: Second distribution
+        epsilon: Small value for numerical stability
+
+    Returns:
+        Symmetric KL divergence: 0.5 * (D_KL(P||Q) + D_KL(Q||P))
+    """
+    return 0.5 * (kl_divergence(p, q, epsilon) + kl_divergence(q, p, epsilon))
+
+
+def magnetization_kl_divergence(
+    samples1: torch.Tensor,
+    samples2: torch.Tensor,
+    n_bins: int = 50,
+) -> Dict[str, float]:
+    """Compute KL divergence between magnetization distributions.
+
+    Args:
+        samples1: Reference samples (e.g., MCMC)
+        samples2: Test samples (e.g., diffusion)
+        n_bins: Number of histogram bins
+
+    Returns:
+        Dictionary with kl_divergence and symmetric_kl_divergence
+    """
+    dist1 = magnetization_distribution(samples1, n_bins)
+    dist2 = magnetization_distribution(samples2, n_bins)
+
+    p = np.array(dist1["P_M"])
+    q = np.array(dist2["P_M"])
+
+    return {
+        "kl_divergence": kl_divergence(p, q),
+        "symmetric_kl_divergence": symmetric_kl_divergence(p, q),
+    }
+
+
+def energy_kl_divergence(
+    samples1: torch.Tensor,
+    samples2: torch.Tensor,
+    ising_model,
+    n_bins: int = 50,
+) -> Dict[str, float]:
+    """Compute KL divergence between energy distributions.
+
+    Args:
+        samples1: Reference samples (e.g., MCMC)
+        samples2: Test samples (e.g., diffusion)
+        ising_model: IsingModel instance
+        n_bins: Number of histogram bins
+
+    Returns:
+        Dictionary with kl_divergence and symmetric_kl_divergence
+    """
+    dist1 = energy_histogram(samples1, ising_model, n_bins)
+    dist2 = energy_histogram(samples2, ising_model, n_bins)
+
+    p = np.array(dist1["P_E"])
+    q = np.array(dist2["P_E"])
+
+    return {
+        "kl_divergence": kl_divergence(p, q),
+        "symmetric_kl_divergence": symmetric_kl_divergence(p, q),
+    }
+
+
 def compare_distributions(
     samples1: torch.Tensor,
     samples2: torch.Tensor,

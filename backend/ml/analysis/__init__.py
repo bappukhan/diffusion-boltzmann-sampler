@@ -4,6 +4,10 @@ from .correlation import (
     autocorrelation_time,
     energy_histogram,
     compare_distributions,
+    kl_divergence,
+    symmetric_kl_divergence,
+    magnetization_kl_divergence,
+    energy_kl_divergence,
 )
 
 __all__ = [
@@ -12,4 +16,8 @@ __all__ = [
     "autocorrelation_time",
     "energy_histogram",
     "compare_distributions",
+    "kl_divergence",
+    "symmetric_kl_divergence",
+    "magnetization_kl_divergence",
+    "energy_kl_divergence",
 ]
