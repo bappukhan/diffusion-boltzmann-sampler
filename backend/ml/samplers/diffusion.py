@@ -183,6 +183,76 @@ class DiffusionSampler:
 
         return x
 
+    @torch.no_grad()
+    def sample_ode(
+        self,
+        shape: Tuple[int, ...],
+        method: str = "euler",
+    ) -> torch.Tensor:
+        """Generate samples using deterministic ODE solver.
+
+        Uses the probability flow ODE (no stochastic term) for deterministic
+        sampling. Useful for evaluation and when reproducibility is needed.
+
+        Args:
+            shape: Shape of samples (batch, channels, height, width)
+            method: ODE solver method:
+                - "euler": Simple Euler method
+                - "heun": Heun's method (2nd order)
+                - "rk4": 4th order Runge-Kutta
+
+        Returns:
+            Generated samples
+        """
+        x = torch.randn(shape, device=self.device)
+        dt = 1.0 / self.num_steps
+
+        for i in range(self.num_steps, 0, -1):
+            t_val = i / self.num_steps
+            t = torch.full((shape[0],), t_val, device=self.device)
+            _, sigma_t = self.diffusion.noise_level(t)
+            sigma = sigma_t[0].item()
+
+            if method == "euler":
+                # Simple Euler: x_{t-dt} = x_t + σ² * s(x,t) * dt
+                score = self.model(x, t)
+                x = x + (sigma**2) * score * dt
+
+            elif method == "heun":
+                # Heun's method (predictor-corrector without noise)
+                score = self.model(x, t)
+                x_pred = x + (sigma**2) * score * dt
+
+                # Corrector at next time
+                t_next = torch.full((shape[0],), (i - 1) / self.num_steps, device=self.device)
+                _, sigma_next = self.diffusion.noise_level(t_next)
+                sigma_n = sigma_next[0].item()
+                score_next = self.model(x_pred, t_next)
+
+                # Average the drift
+                x = x + 0.5 * ((sigma**2) * score + (sigma_n**2) * score_next) * dt
+
+            elif method == "rk4":
+                # 4th order Runge-Kutta
+                def drift_fn(x_in, t_in):
+                    _, sig = self.diffusion.noise_level(t_in)
+                    s = sig[0].item()
+                    return (s**2) * self.model(x_in, t_in)
+
+                k1 = drift_fn(x, t)
+                t_half = torch.full((shape[0],), t_val - 0.5 * dt, device=self.device)
+                k2 = drift_fn(x + 0.5 * dt * k1, t_half)
+                k3 = drift_fn(x + 0.5 * dt * k2, t_half)
+                t_full = torch.full((shape[0],), t_val - dt, device=self.device)
+                k4 = drift_fn(x + dt * k3, t_full)
+
+                x = x + (dt / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
+
+            else:
+                raise ValueError(f"Unknown ODE method: {method}")
+
+        return x
+
     def discretize_spins(
         self,
         x: torch.Tensor,
