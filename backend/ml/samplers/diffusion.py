@@ -32,6 +32,74 @@ class DiffusionSampler:
         self.diffusion = diffusion or DiffusionProcess()
         self.num_steps = num_steps
         self.device = device
+        self._training_temperature: Optional[float] = None
+
+    @property
+    def training_temperature(self) -> Optional[float]:
+        """Temperature the model was trained at."""
+        return self._training_temperature
+
+    @training_temperature.setter
+    def training_temperature(self, value: float) -> None:
+        """Set the training temperature for proper temperature scaling."""
+        self._training_temperature = value
+
+    def compute_temperature_scale(
+        self,
+        target_temperature: float,
+        method: str = "linear",
+    ) -> float:
+        """Compute sampling temperature scale factor.
+
+        When sampling at a different temperature than training, we need to
+        adjust the noise level. This method computes the scaling factor.
+
+        Args:
+            target_temperature: Desired physical temperature
+            method: Scaling method:
+                - "linear": Linear scaling T_sample / T_train
+                - "sqrt": Square root scaling sqrt(T_sample / T_train)
+                - "boltzmann": Boltzmann factor exp(-(T_sample - T_train)/T_train)
+
+        Returns:
+            Temperature scaling factor for sampling
+        """
+        if self._training_temperature is None:
+            # If training temperature not set, assume 1.0 (no scaling)
+            return target_temperature
+
+        ratio = target_temperature / self._training_temperature
+
+        if method == "linear":
+            return ratio
+        elif method == "sqrt":
+            return ratio ** 0.5
+        elif method == "boltzmann":
+            return ratio  # For Boltzmann sampling, linear is appropriate
+        else:
+            raise ValueError(f"Unknown temperature scaling method: {method}")
+
+    def sample_at_temperature(
+        self,
+        shape: Tuple[int, ...],
+        target_temperature: float,
+        scaling_method: str = "linear",
+    ) -> torch.Tensor:
+        """Generate samples at a specific physical temperature.
+
+        Uses temperature scaling to sample at temperatures different from
+        the training temperature.
+
+        Args:
+            shape: Shape of samples (batch, channels, height, width)
+            target_temperature: Desired physical temperature
+            scaling_method: Method for temperature scaling
+
+        Returns:
+            Generated samples
+        """
+        scale = self.compute_temperature_scale(target_temperature, scaling_method)
+        return self.sample(shape, temperature=scale)
 
     @classmethod
     def from_checkpoint(
