@@ -129,6 +129,60 @@ class DiffusionSampler:
             if i % yield_every == 0 or i == 1:
                 yield x.clone(), (i - 1) / self.num_steps
 
+    @torch.no_grad()
+    def sample_predictor_corrector(
+        self,
+        shape: Tuple[int, ...],
+        temperature: float = 1.0,
+        n_corrector_steps: int = 1,
+        corrector_snr: float = 0.16,
+    ) -> torch.Tensor:
+        """Generate samples using predictor-corrector method.
+
+        Combines Euler-Maruyama predictor with Langevin corrector steps
+        for improved sample quality.
+
+        Args:
+            shape: Shape of samples (batch, channels, height, width)
+            temperature: Sampling temperature
+            n_corrector_steps: Number of Langevin corrector steps per predictor step
+            corrector_snr: Signal-to-noise ratio for corrector (controls step size)
+
+        Returns:
+            Generated samples
+        """
+        x = torch.randn(shape, device=self.device)
+        dt = 1.0 / self.num_steps
+
+        for i in range(self.num_steps, 0, -1):
+            t = torch.full((shape[0],), i / self.num_steps, device=self.device)
+            _, sigma_t = self.diffusion.noise_level(t)
+            sigma = sigma_t[0].item()
+
+            # Predictor step (Euler-Maruyama)
+            score = self.model(x, t)
+            drift = (sigma**2) * score * dt
+            if i > 1:
+                noise = torch.randn_like(x)
+                diffusion_term = sigma * (dt**0.5) * noise * temperature
+            else:
+                diffusion_term = 0
+            x = x + drift + diffusion_term
+
+            # Corrector steps (Langevin dynamics)
+            if i > 1:  # Skip corrector at final step
+                for _ in range(n_corrector_steps):
+                    score = self.model(x, t)
+                    # Langevin step size based on SNR
+                    grad_norm = score.flatten(1).norm(dim=1).mean()
+                    noise_norm = (x.numel() / x.shape[0]) ** 0.5
+                    step_size = (corrector_snr * noise_norm / grad_norm) ** 2 * 2
+
+                    noise = torch.randn_like(x)
+                    x = x + step_size * score + (2 * step_size) ** 0.5 * noise * temperature
+
+        return x
+
     def discretize_spins(
         self,
         x: torch.Tensor,
