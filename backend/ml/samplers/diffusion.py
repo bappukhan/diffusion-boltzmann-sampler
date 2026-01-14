@@ -33,6 +33,92 @@ class DiffusionSampler:
         self.num_steps = num_steps
         self.device = device
 
+    @classmethod
+    def from_checkpoint(
+        cls,
+        checkpoint_path: str,
+        num_steps: int = 100,
+        device: str = "cpu",
+    ) -> "DiffusionSampler":
+        """Create sampler from a saved checkpoint.
+
+        Args:
+            checkpoint_path: Path to checkpoint file (.pt or .pth)
+            num_steps: Number of sampling steps
+            device: Device to run on
+
+        Returns:
+            DiffusionSampler instance with loaded model
+        """
+        from ..models.score_network import ScoreNetwork
+
+        # Load checkpoint
+        checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+
+        # Extract model config and state
+        if "model_config" in checkpoint:
+            config = checkpoint["model_config"]
+            model = ScoreNetwork(**config)
+        else:
+            # Default config if not stored
+            model = ScoreNetwork(
+                in_channels=1,
+                base_channels=32,
+                time_embed_dim=64,
+                num_blocks=3,
+            )
+
+        # Load state dict
+        if "model_state_dict" in checkpoint:
+            model.load_state_dict(checkpoint["model_state_dict"])
+        elif "state_dict" in checkpoint:
+            model.load_state_dict(checkpoint["state_dict"])
+        else:
+            # Assume checkpoint is the state dict itself
+            model.load_state_dict(checkpoint)
+
+        # Create diffusion process
+        diffusion = None
+        if "diffusion_config" in checkpoint:
+            diffusion = DiffusionProcess(**checkpoint["diffusion_config"])
+
+        return cls(
+            score_network=model,
+            diffusion=diffusion,
+            num_steps=num_steps,
+            device=device,
+        )
+
+    def save_checkpoint(
+        self,
+        path: str,
+        model_config: Optional[Dict[str, Any]] = None,
+        extra_info: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Save sampler state to checkpoint.
+
+        Args:
+            path: Path to save checkpoint
+            model_config: Optional model configuration dict
+            extra_info: Optional extra information to save
+        """
+        checkpoint = {
+            "model_state_dict": self.model.state_dict(),
+            "num_steps": self.num_steps,
+            "diffusion_config": {
+                "beta_min": self.diffusion.beta_min,
+                "beta_max": self.diffusion.beta_max,
+            },
+        }
+
+        if model_config:
+            checkpoint["model_config"] = model_config
+
+        if extra_info:
+            checkpoint.update(extra_info)
+
+        torch.save(checkpoint, path)
+
     @torch.no_grad()
     def sample(
         self,
