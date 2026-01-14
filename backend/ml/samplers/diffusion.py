@@ -284,6 +284,112 @@ class DiffusionSampler:
                 yield x.clone(), (i - 1) / self.num_steps
 
     @torch.no_grad()
+    def sample_trajectory_with_metadata(
+        self,
+        shape: Tuple[int, ...],
+        temperature: float = 1.0,
+        n_frames: int = 50,
+        frame_spacing: str = "linear",
+        include_statistics: bool = False,
+        ising_model=None,
+    ) -> Generator[Dict[str, Any], None, None]:
+        """Generate samples with rich metadata for animation.
+
+        Enhanced trajectory generation that yields frames with metadata
+        at configurable intervals, optimized for smooth animations.
+
+        Args:
+            shape: Shape of samples (batch, channels, height, width)
+            temperature: Sampling temperature
+            n_frames: Number of frames to yield (plus initial frame)
+            frame_spacing: How to space frames:
+                - "linear": Evenly spaced in time
+                - "log": Logarithmically spaced (more detail near end)
+                - "cosine": Cosine spacing (smooth acceleration)
+            include_statistics: Whether to compute statistics per frame
+            ising_model: Optional IsingModel for energy calculations
+
+        Yields:
+            Dictionary with keys:
+            - x: Current state tensor
+            - t: Diffusion time (1.0 → 0.0)
+            - step: Current step number
+            - progress: Sampling progress (0.0 → 1.0)
+            - sigma: Current noise level
+            - statistics: Optional sample statistics
+        """
+        import numpy as np
+
+        # Compute frame indices based on spacing
+        if frame_spacing == "linear":
+            frame_times = np.linspace(1.0, 0.0, n_frames + 1)
+        elif frame_spacing == "log":
+            # More frames near t=0 (end of sampling)
+            frame_times = 1.0 - np.logspace(-2, 0, n_frames + 1)
+            frame_times = np.clip(frame_times, 0.0, 1.0)
+            frame_times = np.sort(frame_times)[::-1]
+        elif frame_spacing == "cosine":
+            # Smooth cosine spacing
+            angles = np.linspace(0, np.pi, n_frames + 1)
+            frame_times = 0.5 * (1 + np.cos(angles))
+        else:
+            raise ValueError(f"Unknown frame_spacing: {frame_spacing}")
+
+        # Convert to step indices
+        frame_steps = set((frame_times * self.num_steps).astype(int))
+        frame_steps.add(self.num_steps)  # Include first frame
+        frame_steps.add(0)  # Include last frame
+
+        x = torch.randn(shape, device=self.device)
+        dt = 1.0 / self.num_steps
+
+        # Yield initial state
+        _, sigma_init = self.diffusion.noise_level(torch.tensor([1.0]))
+        frame_data = {
+            "x": x.clone(),
+            "t": 1.0,
+            "step": self.num_steps,
+            "progress": 0.0,
+            "sigma": sigma_init[0].item(),
+        }
+        if include_statistics and ising_model:
+            frame_data["statistics"] = self.compute_sample_statistics(x, ising_model)
+        yield frame_data
+
+        for i in range(self.num_steps, 0, -1):
+            t_val = i / self.num_steps
+            t = torch.full((shape[0],), t_val, device=self.device)
+
+            _, sigma_t = self.diffusion.noise_level(t)
+            sigma = sigma_t[0].item()
+
+            score = self.model(x, t)
+            drift = (sigma**2) * score * dt
+            if i > 1:
+                noise = torch.randn_like(x)
+                diffusion_term = sigma * (dt**0.5) * noise * temperature
+            else:
+                diffusion_term = 0
+
+            x = x + drift + diffusion_term
+
+            # Yield at frame indices
+            if i - 1 in frame_steps or i == 1:
+                t_next = (i - 1) / self.num_steps
+                _, sigma_next = self.diffusion.noise_level(torch.tensor([t_next]))
+
+                frame_data = {
+                    "x": x.clone(),
+                    "t": t_next,
+                    "step": i - 1,
+                    "progress": 1.0 - t_next,
+                    "sigma": sigma_next[0].item(),
+                }
+                if include_statistics and ising_model:
+                    frame_data["statistics"] = self.compute_sample_statistics(x, ising_model)
+                yield frame_data
+
+    @torch.no_grad()
     def sample_predictor_corrector(
         self,
         shape: Tuple[int, ...],
