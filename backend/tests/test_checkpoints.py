@@ -1,10 +1,14 @@
 """Tests for checkpoint utilities."""
 
+import os
+import torch
+
 from backend.ml.checkpoints import (
     format_checkpoint_name,
     format_epoch_checkpoint_name,
     sanitize_checkpoint_name,
     checkpoint_path_from_name,
+    find_latest_checkpoint,
 )
 
 
@@ -36,3 +40,21 @@ def test_checkpoint_path_from_name_uses_env(monkeypatch, tmp_path):
     path = checkpoint_path_from_name("nested/foo.pt")
     assert path.parent == tmp_path
     assert path.name == "foo.pt"
+
+
+def test_find_latest_checkpoint(monkeypatch, tmp_path):
+    """find_latest_checkpoint should return the newest matching entry."""
+    monkeypatch.setenv("CHECKPOINT_DIR", str(tmp_path))
+
+    first = tmp_path / "first.pt"
+    second = tmp_path / "second.pt"
+
+    torch.save({"lattice_size": 8, "training_temperature": 2.0}, first)
+    torch.save({"lattice_size": 8, "training_temperature": 2.0}, second)
+
+    os.utime(first, (1, 1))
+    os.utime(second, (2, 2))
+
+    latest = find_latest_checkpoint(lattice_size=8)
+    assert latest is not None
+    assert latest.name == "second.pt"
