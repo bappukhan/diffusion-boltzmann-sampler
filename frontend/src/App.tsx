@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useSimulationStore, T_CRITICAL } from './store/simulationStore';
+import { useHealthCheck } from './hooks/useHealthCheck';
 import {
-  checkHealth,
   getRandomConfiguration,
   createSamplingWebSocket,
   compareSamplers,
@@ -19,7 +19,6 @@ function App() {
     samplerType,
     numSteps,
     spins,
-    isConnected,
     setSpins,
     setEnergy,
     setMagnetization,
@@ -34,22 +33,19 @@ function App() {
   const [isComparing, setIsComparing] = useState(false);
   const [activeTab, setActiveTab] = useState<'simulation' | 'analysis'>('simulation');
 
-  // Check backend connection on mount
-  useEffect(() => {
-    const checkConnection = async () => {
-      try {
-        await checkHealth();
-        setIsConnected(true);
-      } catch {
-        setIsConnected(false);
+  // Use health check hook for backend connection monitoring
+  const { isConnected } = useHealthCheck({
+    interval: 10000,
+    immediate: true,
+    onStatusChange: (connected) => {
+      setIsConnected(connected);
+      if (!connected) {
         setError('Backend not available. Start the server with: uvicorn backend.api.main:app --reload');
+      } else {
+        setError(null);
       }
-    };
-
-    checkConnection();
-    const interval = setInterval(checkConnection, 10000);
-    return () => clearInterval(interval);
-  }, [setIsConnected, setError]);
+    },
+  });
 
   // Generate sample via WebSocket
   const handleSample = useCallback(() => {
