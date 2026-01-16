@@ -304,6 +304,49 @@ class TestDiffusionSamplerTemperatureScaling:
         assert samples.shape == (2, 1, 8, 8)
 
 
+class TestDiffusionSamplerGenerateBatch:
+    """Tests for generate_batch method."""
+
+    @pytest.fixture
+    def diffusion_sampler(self):
+        """Create a diffusion sampler for testing."""
+        model = ScoreNetwork(in_channels=1, base_channels=16, time_embed_dim=32, num_blocks=2)
+        return DiffusionSampler(
+            score_network=model,
+            num_steps=10,
+        )
+
+    def test_generate_batch_returns_correct_count(self, diffusion_sampler):
+        """generate_batch should return requested number of samples."""
+        samples = diffusion_sampler.generate_batch(
+            n_samples=5, lattice_size=8, batch_size=2
+        )
+        assert samples.shape[0] == 5
+
+    def test_generate_batch_correct_shape(self, diffusion_sampler):
+        """generate_batch should return correct shape (no channel dim)."""
+        samples = diffusion_sampler.generate_batch(
+            n_samples=4, lattice_size=16, batch_size=2
+        )
+        assert samples.shape == (4, 16, 16)
+
+    def test_generate_batch_discrete_by_default(self, diffusion_sampler):
+        """generate_batch should discretize by default."""
+        samples = diffusion_sampler.generate_batch(
+            n_samples=3, lattice_size=8, discretize=True
+        )
+        unique = torch.unique(samples)
+        assert all(v in [-1, 1] for v in unique.tolist())
+
+    def test_generate_batch_different_methods(self, diffusion_sampler):
+        """generate_batch should support different sampling methods."""
+        for method in ["sde", "ode", "pc"]:
+            samples = diffusion_sampler.generate_batch(
+                n_samples=2, lattice_size=8, sampling_method=method
+            )
+            assert samples.shape == (2, 8, 8)
+
+
 class TestPretrainedDiffusionSampler:
     """Tests for PretrainedDiffusionSampler (heuristic mode)."""
 
