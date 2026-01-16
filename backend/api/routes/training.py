@@ -7,7 +7,11 @@ from pathlib import Path
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-from ...ml.checkpoints import get_checkpoint_dir, list_checkpoints as list_checkpoint_metadata
+from ...ml.checkpoints import (
+    get_checkpoint_dir,
+    list_checkpoints as list_checkpoint_metadata,
+    format_checkpoint_name,
+)
 
 from ...ml.systems.ising import IsingModel
 from ...ml.models.score_network import ScoreNetwork
@@ -81,12 +85,13 @@ def run_training_background(request: TrainingRequest):
         dataloader = DataLoader(dataset, batch_size=request.batch_size, shuffle=True)
 
         # Create model and trainer
-        model = ScoreNetwork(
-            in_channels=1,
-            base_channels=32,
-            time_embed_dim=64,
-            num_blocks=3,
-        )
+        model_config = {
+            "in_channels": 1,
+            "base_channels": 32,
+            "time_embed_dim": 64,
+            "num_blocks": 3,
+        }
+        model = ScoreNetwork(**model_config)
         trainer = Trainer(model, learning_rate=request.learning_rate)
 
         # Training loop
@@ -102,6 +107,28 @@ def run_training_background(request: TrainingRequest):
 
             if (epoch + 1) % 10 == 0:
                 print(f"Epoch {epoch+1}/{request.epochs}, Loss: {loss:.4f}")
+
+        checkpoint_dir = get_checkpoint_dir()
+        checkpoint_name = format_checkpoint_name(
+            lattice_size=request.lattice_size,
+            temperature=request.temperature,
+        )
+        checkpoint_path = checkpoint_dir / checkpoint_name
+        trainer.save_checkpoint(
+            path=str(checkpoint_path),
+            model_config=model_config,
+            training_temperature=request.temperature,
+            training_meta={
+                "epochs": request.epochs,
+                "n_training_samples": request.n_training_samples,
+                "batch_size": request.batch_size,
+                "learning_rate": request.learning_rate,
+            },
+            extra_info={
+                "lattice_size": request.lattice_size,
+            },
+        )
+        training_state["last_checkpoint"] = str(checkpoint_path)
 
         print("Training complete!")
 
