@@ -1,4 +1,4 @@
-import { useSimulationStore, T_CRITICAL } from '../store/simulationStore';
+import { useSimulationStore, T_CRITICAL, DEFAULT_CONFIG } from '../store/simulationStore';
 
 interface ControlPanelProps {
   onSample: () => void;
@@ -21,7 +21,14 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     setLatticeSize,
     setSamplerType,
     setNumSteps,
+    resetConfig,
   } = useSimulationStore();
+
+  const isDefaultConfig =
+    temperature === DEFAULT_CONFIG.temperature &&
+    latticeSize === DEFAULT_CONFIG.latticeSize &&
+    samplerType === DEFAULT_CONFIG.samplerType &&
+    numSteps === DEFAULT_CONFIG.numSteps;
 
   const isNearCritical = Math.abs(temperature - T_CRITICAL) < 0.2;
 
@@ -124,25 +131,51 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       </div>
 
       {/* Action Buttons */}
-      <div className="flex gap-3">
-        <button
-          onClick={onSample}
-          disabled={isRunning}
-          className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${
-            isRunning
-              ? 'bg-slate-600 text-slate-400 cursor-not-allowed'
-              : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-600 hover:to-purple-600 shadow-lg hover:shadow-xl'
-          }`}
-        >
-          {isRunning ? 'Sampling...' : 'Generate Sample'}
-        </button>
-        <button
-          onClick={onRandomize}
-          disabled={isRunning}
-          className="py-3 px-4 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-colors"
-        >
-          Random
-        </button>
+      <div className="space-y-3">
+        <div className="flex gap-3">
+          <button
+            onClick={onSample}
+            disabled={isRunning}
+            className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${
+              isRunning
+                ? 'bg-slate-600 text-slate-400 cursor-not-allowed'
+                : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-600 hover:to-purple-600 shadow-lg hover:shadow-xl'
+            }`}
+          >
+            {isRunning ? 'Sampling...' : 'Generate Sample'}
+          </button>
+          <button
+            onClick={onRandomize}
+            disabled={isRunning}
+            className="py-3 px-4 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-colors"
+          >
+            Random
+          </button>
+        </div>
+
+        {/* Reset to Defaults */}
+        {!isDefaultConfig && (
+          <button
+            onClick={resetConfig}
+            disabled={isRunning}
+            className="w-full py-2 px-4 text-sm text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 rounded-lg transition-colors flex items-center justify-center gap-2"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+            Reset to Defaults
+          </button>
+        )}
       </div>
 
       {/* Current State */}
