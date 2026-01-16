@@ -34,6 +34,17 @@ from .analysis import (
     comprehensive_comparison,
 )
 
+# Checkpoint utilities
+from .checkpoints import (
+    get_checkpoint_dir,
+    format_checkpoint_name,
+    format_epoch_checkpoint_name,
+    sanitize_checkpoint_name,
+    checkpoint_path_from_name,
+    list_checkpoints,
+    find_latest_checkpoint,
+)
+
 __all__ = [
     # Types
     "SpinConfiguration",
@@ -65,4 +76,12 @@ __all__ = [
     "energy_wasserstein",
     "correlation_function_comparison",
     "comprehensive_comparison",
+    # Checkpoints
+    "get_checkpoint_dir",
+    "format_checkpoint_name",
+    "format_epoch_checkpoint_name",
+    "sanitize_checkpoint_name",
+    "checkpoint_path_from_name",
+    "list_checkpoints",
+    "find_latest_checkpoint",
 ]
