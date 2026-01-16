@@ -24,6 +24,7 @@ training_state = {
     "current_epoch": 0,
     "total_epochs": 0,
     "current_loss": None,
+    "last_checkpoint": None,
     "history": {"train_loss": []},
 }
 
@@ -37,6 +38,12 @@ class TrainingRequest(BaseModel):
     epochs: int = Field(50, ge=1, le=500)
     batch_size: int = Field(16, ge=4, le=64)
     learning_rate: float = Field(1e-3, ge=1e-5, le=1e-1)
+    checkpoint_interval: int = Field(
+        0,
+        ge=0,
+        le=500,
+        description="Save periodic checkpoints every N epochs (0 disables)",
+    )
 
 
 class TrainingStatus(BaseModel):
