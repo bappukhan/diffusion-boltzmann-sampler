@@ -38,6 +38,13 @@ class DiffusionProcess:
         self.beta_max = beta_max
         self._schedule = schedule
 
+    def get_config(self) -> dict:
+        """Return serializable diffusion configuration."""
+        return {
+            "beta_min": self.beta_min,
+            "beta_max": self.beta_max,
+        }
+
     def _clamp_time(self, t: torch.Tensor) -> torch.Tensor:
         """Clamp time values to valid range [0, 1] for numerical stability."""
         return torch.clamp(t, min=0.0, max=1.0)
