@@ -57,6 +57,12 @@ def sanitize_checkpoint_name(name: str) -> str:
     return Path(name).name
 
 
+def checkpoint_path_from_name(name: str) -> Path:
+    """Return a checkpoint path for a provided name."""
+    checkpoint_dir = get_checkpoint_dir()
+    return checkpoint_dir / sanitize_checkpoint_name(name)
+
+
 def load_checkpoint_metadata(path: Path) -> CheckpointMetadata:
     """Load metadata from a checkpoint file without raising on missing keys."""
     stat = path.stat()
