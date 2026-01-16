@@ -129,14 +129,15 @@ class TestDiffusionSamplerSampleIsing:
 
     def test_sample_ising_returns_discrete(self, diffusion_sampler):
         """sample_ising should return discrete ±1 values."""
-        samples = diffusion_sampler.sample_ising(shape=(2, 1, 8, 8))
+        samples = diffusion_sampler.sample_ising(batch_size=2, lattice_size=8)
         unique = torch.unique(samples)
         assert all(v in [-1, 1] for v in unique.tolist())
 
     def test_sample_ising_correct_shape(self, diffusion_sampler):
-        """sample_ising should return correct shape."""
-        samples = diffusion_sampler.sample_ising(shape=(3, 1, 8, 8))
-        assert samples.shape == (3, 1, 8, 8)
+        """sample_ising should return correct shape without channel dimension."""
+        samples = diffusion_sampler.sample_ising(batch_size=3, lattice_size=8)
+        # sample_ising removes channel dimension, returns (batch, height, width)
+        assert samples.shape == (3, 8, 8)
 
 
 class TestDiffusionSamplerTrajectory:
