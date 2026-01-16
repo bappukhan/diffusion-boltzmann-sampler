@@ -52,6 +52,11 @@ def format_epoch_checkpoint_name(
     return f"ising_{lattice_size}_T{temperature:.2f}_epoch{epoch}_{stamp}.pt"
 
 
+def sanitize_checkpoint_name(name: str) -> str:
+    """Return a filename-only checkpoint name."""
+    return Path(name).name
+
+
 def load_checkpoint_metadata(path: Path) -> CheckpointMetadata:
     """Load metadata from a checkpoint file without raising on missing keys."""
     stat = path.stat()
