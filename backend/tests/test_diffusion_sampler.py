@@ -259,6 +259,51 @@ class TestDiffusionSamplerStatistics:
         assert "mean" in stats or "sample_mean" in stats
 
 
+class TestDiffusionSamplerTemperatureScaling:
+    """Tests for temperature scaling feature."""
+
+    @pytest.fixture
+    def diffusion_sampler(self):
+        """Create a diffusion sampler for testing."""
+        model = ScoreNetwork(in_channels=1, base_channels=16, time_embed_dim=32, num_blocks=2)
+        return DiffusionSampler(
+            score_network=model,
+            num_steps=10,
+        )
+
+    def test_training_temperature_property(self, diffusion_sampler):
+        """Training temperature should be settable and gettable."""
+        assert diffusion_sampler.training_temperature is None
+        diffusion_sampler.training_temperature = 2.27
+        assert diffusion_sampler.training_temperature == 2.27
+
+    def test_compute_temperature_scale_linear(self, diffusion_sampler):
+        """Linear scaling should compute T_target / T_train."""
+        diffusion_sampler.training_temperature = 2.0
+        scale = diffusion_sampler.compute_temperature_scale(4.0, method="linear")
+        assert scale == 2.0
+
+    def test_compute_temperature_scale_sqrt(self, diffusion_sampler):
+        """Sqrt scaling should compute sqrt(T_target / T_train)."""
+        diffusion_sampler.training_temperature = 4.0
+        scale = diffusion_sampler.compute_temperature_scale(4.0, method="sqrt")
+        assert scale == 1.0
+
+    def test_compute_temperature_scale_no_training_temp(self, diffusion_sampler):
+        """Without training temp, should return target temperature."""
+        scale = diffusion_sampler.compute_temperature_scale(2.5, method="linear")
+        assert scale == 2.5
+
+    def test_sample_at_temperature(self, diffusion_sampler):
+        """sample_at_temperature should return samples with correct shape."""
+        diffusion_sampler.training_temperature = 2.27
+        samples = diffusion_sampler.sample_at_temperature(
+            shape=(2, 1, 8, 8),
+            target_temperature=3.0,
+        )
+        assert samples.shape == (2, 1, 8, 8)
+
+
 class TestPretrainedDiffusionSampler:
     """Tests for PretrainedDiffusionSampler (heuristic mode)."""
 
