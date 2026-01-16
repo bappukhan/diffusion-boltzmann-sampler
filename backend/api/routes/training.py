@@ -59,6 +59,7 @@ class TrainingStatus(BaseModel):
     current_epoch: int
     total_epochs: int
     current_loss: Optional[float]
+    last_checkpoint: Optional[str] = None
     history: Dict[str, Any]
 
 
@@ -183,6 +184,7 @@ async def start_training(
     training_state["progress"] = 0.0
     training_state["current_epoch"] = 0
     training_state["current_loss"] = None
+    training_state["last_checkpoint"] = None
 
     # Start background training
     background_tasks.add_task(run_training_background, request)
