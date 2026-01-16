@@ -500,3 +500,22 @@ class TestDiffusionCheckpointSampling:
             },
         )
         assert response.status_code == 200
+
+    def test_diffusion_missing_checkpoint_name_returns_404(
+        self, client: TestClient, monkeypatch, tmp_path
+    ):
+        """Explicit checkpoint_name should 404 when missing."""
+        monkeypatch.setenv("CHECKPOINT_DIR", str(tmp_path))
+
+        response = client.post(
+            "/sample/diffusion",
+            json={
+                "temperature": 2.27,
+                "lattice_size": 8,
+                "n_samples": 1,
+                "num_steps": 5,
+                "checkpoint_name": "missing.pt",
+                "use_trained_model": False,
+            },
+        )
+        assert response.status_code == 404
