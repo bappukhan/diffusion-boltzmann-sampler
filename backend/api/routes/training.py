@@ -11,6 +11,7 @@ from ...ml.checkpoints import (
     get_checkpoint_dir,
     list_checkpoints as list_checkpoint_metadata,
     format_checkpoint_name,
+    format_epoch_checkpoint_name,
 )
 
 from ...ml.systems.ising import IsingModel
@@ -107,6 +108,31 @@ def run_training_background(request: TrainingRequest):
 
             if (epoch + 1) % 10 == 0:
                 print(f"Epoch {epoch+1}/{request.epochs}, Loss: {loss:.4f}")
+
+            if request.checkpoint_interval > 0 and (epoch + 1) % request.checkpoint_interval == 0:
+                checkpoint_dir = get_checkpoint_dir()
+                checkpoint_name = format_epoch_checkpoint_name(
+                    lattice_size=request.lattice_size,
+                    temperature=request.temperature,
+                    epoch=epoch + 1,
+                )
+                checkpoint_path = checkpoint_dir / checkpoint_name
+                trainer.save_checkpoint(
+                    path=str(checkpoint_path),
+                    model_config=model_config,
+                    training_temperature=request.temperature,
+                    training_meta={
+                        "epoch": epoch + 1,
+                        "epochs": request.epochs,
+                        "n_training_samples": request.n_training_samples,
+                        "batch_size": request.batch_size,
+                        "learning_rate": request.learning_rate,
+                    },
+                    extra_info={
+                        "lattice_size": request.lattice_size,
+                    },
+                )
+                training_state["last_checkpoint"] = str(checkpoint_path)
 
         checkpoint_dir = get_checkpoint_dir()
         checkpoint_name = format_checkpoint_name(
