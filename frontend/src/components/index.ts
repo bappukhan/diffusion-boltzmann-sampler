@@ -11,3 +11,4 @@ export { LoadingSpinner, LoadingOverlay } from './LoadingSpinner';
 export { Toast, ToastContainer } from './Toast';
 export type { ToastType } from './Toast';
 export { ConnectionStatus } from './ConnectionStatus';
+export { KeyboardShortcuts } from './KeyboardShortcuts';
