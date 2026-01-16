@@ -181,7 +181,7 @@ class TestDiffusionSamplerODE:
     @pytest.fixture
     def diffusion_sampler(self):
         """Create a diffusion sampler for testing."""
-        model = ScoreNetwork(lattice_size=8)
+        model = ScoreNetwork(in_channels=1, base_channels=16, time_embed_dim=32, num_blocks=2)
         return DiffusionSampler(
             score_network=model,
             num_steps=10,
