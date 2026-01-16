@@ -3,10 +3,16 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import List, Optional
+from pathlib import Path
 import torch
 
 from ...ml.systems.ising import IsingModel
 from ...ml.samplers.mcmc import MetropolisHastings
+from ...ml.checkpoints import (
+    get_checkpoint_dir,
+    format_checkpoint_name,
+    find_latest_checkpoint,
+)
 
 
 router = APIRouter()
@@ -56,6 +62,33 @@ class SampleResponse(BaseModel):
     lattice_size: int
 
 
+def resolve_checkpoint_path(request: DiffusionSampleRequest) -> Optional[Path]:
+    """Resolve the best checkpoint path based on request options."""
+    if request.checkpoint_path:
+        return Path(request.checkpoint_path)
+
+    if request.checkpoint_name:
+        checkpoint_name = Path(request.checkpoint_name).name
+        return get_checkpoint_dir() / checkpoint_name
+
+    if not request.use_trained_model:
+        return None
+
+    checkpoint_dir = get_checkpoint_dir()
+    preferred = checkpoint_dir / format_checkpoint_name(
+        lattice_size=request.lattice_size,
+        temperature=request.temperature,
+    )
+    if preferred.exists():
+        return preferred
+
+    latest = find_latest_checkpoint(
+        lattice_size=request.lattice_size,
+        temperature=request.temperature,
+    )
+    return Path(latest.path) if latest else None
+
+
 @router.post("/mcmc", response_model=SampleResponse)
 async def sample_mcmc(request: MCMCSampleRequest) -> SampleResponse:
     """Generate samples using Metropolis-Hastings MCMC.
@@ -100,54 +133,39 @@ async def sample_diffusion(request: DiffusionSampleRequest) -> SampleResponse:
     try:
         from ...ml.samplers.diffusion import DiffusionSampler, PretrainedDiffusionSampler
 
-        # Choose sampler based on request
-        if request.checkpoint_path:
-            # Load from explicit checkpoint path
+        checkpoint_path = resolve_checkpoint_path(request)
+        if request.checkpoint_path or request.checkpoint_name:
+            if checkpoint_path is None or not checkpoint_path.exists():
+                raise HTTPException(status_code=404, detail="Checkpoint not found")
+
+        if checkpoint_path and checkpoint_path.exists():
             sampler = DiffusionSampler.from_checkpoint(
-                checkpoint_path=request.checkpoint_path,
+                checkpoint_path=str(checkpoint_path),
                 num_steps=request.num_steps,
             )
-            # Generate samples with trained model
+            temperature_scale = sampler.compute_temperature_scale(request.temperature)
             if request.discretize:
                 samples = sampler.sample_ising(
                     batch_size=request.n_samples,
-                    method=request.discretization_method,
-                )
-            else:
-                samples = sampler.sample(batch_size=request.n_samples)
-        elif request.use_trained_model:
-            # Try to find a trained model automatically
-            import os
-            checkpoints_dir = os.path.join(
-                os.path.dirname(__file__), "..", "..", "ml", "checkpoints"
-            )
-            checkpoint_file = os.path.join(
-                checkpoints_dir, f"ising_{request.lattice_size}.pt"
-            )
-            if os.path.exists(checkpoint_file):
-                sampler = DiffusionSampler.from_checkpoint(
-                    checkpoint_path=checkpoint_file,
-                    num_steps=request.num_steps,
-                )
-                if request.discretize:
-                    samples = sampler.sample_ising(
-                        batch_size=request.n_samples,
-                        method=request.discretization_method,
-                    )
-                else:
-                    samples = sampler.sample(batch_size=request.n_samples)
-            else:
-                # Fall back to heuristic mode
-                sampler = PretrainedDiffusionSampler(
                     lattice_size=request.lattice_size,
-                    num_steps=request.num_steps,
+                    temperature=temperature_scale,
+                    discretize_method=request.discretization_method,
                 )
-                samples = sampler.sample_heuristic(
-                    batch_size=request.n_samples,
-                    temperature=request.temperature,
+            else:
+                samples = sampler.sample(
+                    shape=(request.n_samples, 1, request.lattice_size, request.lattice_size),
+                    temperature=temperature_scale,
                 )
+        elif request.use_trained_model:
+            sampler = PretrainedDiffusionSampler(
+                lattice_size=request.lattice_size,
+                num_steps=request.num_steps,
+            )
+            samples = sampler.sample_heuristic(
+                batch_size=request.n_samples,
+                temperature=request.temperature,
+            )
         else:
-            # Use heuristic mode (demo/untrained)
             sampler = PretrainedDiffusionSampler(
                 lattice_size=request.lattice_size,
                 num_steps=request.num_steps,
