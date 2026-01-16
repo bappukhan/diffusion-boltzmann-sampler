@@ -286,17 +286,18 @@ class TestPretrainedDiffusionSampler:
         unique = torch.unique(samples_2d)
         assert all(v in [-1, 1] for v in unique.tolist())
 
-    def test_sample_trajectory_generator(self):
-        """sample_trajectory should return a generator."""
+    def test_sample_with_trajectory_generator(self):
+        """sample_with_trajectory should return a generator."""
         from types import GeneratorType
         sampler = PretrainedDiffusionSampler(lattice_size=8, num_steps=20)
-        trajectory = sampler.sample_trajectory(batch_size=1)
+        trajectory = sampler.sample_with_trajectory(shape=(1, 1, 8, 8))
         assert isinstance(trajectory, GeneratorType)
 
-    def test_sample_trajectory_yields_frames(self):
-        """sample_trajectory should yield tensor frames."""
+    def test_sample_with_trajectory_yields_tuples(self):
+        """sample_with_trajectory should yield (tensor, time) tuples."""
         sampler = PretrainedDiffusionSampler(lattice_size=8, num_steps=20)
-        frames = list(sampler.sample_trajectory(batch_size=1, yield_every=5))
+        frames = list(sampler.sample_with_trajectory(shape=(1, 1, 8, 8), yield_every=5))
         assert len(frames) > 0
-        for frame in frames:
-            assert isinstance(frame, torch.Tensor)
+        for x, t in frames:
+            assert isinstance(x, torch.Tensor)
+            assert isinstance(t, float)
