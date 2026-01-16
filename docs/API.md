@@ -107,7 +107,11 @@ POST /sample/diffusion
   "temperature": 2.27,
   "lattice_size": 32,
   "n_samples": 1,
-  "num_steps": 100
+  "num_steps": 100,
+  "checkpoint_name": "ising_32_T2.27.pt",
+  "use_trained_model": true,
+  "discretize": true,
+  "discretization_method": "sign"
 }
 ```
 
@@ -117,6 +121,11 @@ POST /sample/diffusion
 | `lattice_size` | int | 32 | Lattice size (8-64) |
 | `n_samples` | int | 1 | Number of samples (1-10) |
 | `num_steps` | int | 100 | Diffusion steps (10-500) |
+| `checkpoint_path` | string | null | Explicit checkpoint path |
+| `checkpoint_name` | string | null | Checkpoint file in `CHECKPOINT_DIR` |
+| `use_trained_model` | bool | false | Load latest matching checkpoint |
+| `discretize` | bool | true | Discretize to ±1 spins |
+| `discretization_method` | string | sign | sign, tanh, gumbel, stochastic |
 
 ### Random Configuration
 
@@ -142,6 +151,22 @@ Get a ground state configuration.
 
 ```http
 GET /sample/ground_state?lattice_size=32&positive=true
+```
+
+---
+
+## Training Endpoints
+
+### List Checkpoints
+
+```http
+GET /training/checkpoints
+```
+
+### Latest Checkpoint
+
+```http
+GET /training/checkpoints/latest?lattice_size=32&temperature=2.27
 ```
 
 ---
