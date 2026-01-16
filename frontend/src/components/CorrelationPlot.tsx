@@ -1,17 +1,24 @@
 import React, { useMemo } from 'react';
 import Plot from 'react-plotly.js';
+import { exportCorrelationData, exportDistributionData } from '../utils/export';
 
 interface CorrelationPlotProps {
   mcmcData?: { r: number[]; C_r: number[] };
   diffusionData?: { r: number[]; C_r: number[] };
   title?: string;
+  /** Show export button */
+  showExport?: boolean;
 }
 
 export const CorrelationPlot: React.FC<CorrelationPlotProps> = ({
   mcmcData,
   diffusionData,
   title = 'Spin-Spin Correlation',
+  showExport = true,
 }) => {
+  const handleExport = () => {
+    exportCorrelationData(mcmcData, diffusionData, 'correlation_data.csv');
+  };
   const plotData = useMemo(() => {
     const traces = [];
 
@@ -88,7 +95,18 @@ export const CorrelationPlot: React.FC<CorrelationPlotProps> = ({
   }
 
   return (
-    <div className="bg-slate-800 rounded-lg p-4 shadow-lg">
+    <div className="bg-slate-800 rounded-lg p-4 shadow-lg relative">
+      {showExport && plotData.length > 0 && (
+        <button
+          onClick={handleExport}
+          className="absolute top-2 right-2 p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors"
+          title="Export data as CSV"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+        </button>
+      )}
       <Plot
         data={plotData}
         layout={layout}
@@ -106,6 +124,8 @@ interface DistributionPlotProps {
   diffusionData?: { values: number[]; probabilities: number[] };
   title?: string;
   xlabel?: string;
+  /** Show export button */
+  showExport?: boolean;
 }
 
 export const DistributionPlot: React.FC<DistributionPlotProps> = ({
@@ -113,7 +133,12 @@ export const DistributionPlot: React.FC<DistributionPlotProps> = ({
   diffusionData,
   title = 'Distribution',
   xlabel = 'Value',
+  showExport = true,
 }) => {
+  const handleExport = () => {
+    const filename = title.toLowerCase().replace(/\s+/g, '_') + '_data.csv';
+    exportDistributionData(mcmcData, diffusionData, filename);
+  };
   const plotData = useMemo(() => {
     const traces = [];
 
@@ -185,7 +210,18 @@ export const DistributionPlot: React.FC<DistributionPlotProps> = ({
   }
 
   return (
-    <div className="bg-slate-800 rounded-lg p-4 shadow-lg">
+    <div className="bg-slate-800 rounded-lg p-4 shadow-lg relative">
+      {showExport && plotData.length > 0 && (
+        <button
+          onClick={handleExport}
+          className="absolute top-2 right-2 p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors"
+          title="Export data as CSV"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+        </button>
+      )}
       <Plot
         data={plotData}
         layout={layout}
