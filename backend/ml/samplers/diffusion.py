@@ -161,6 +161,8 @@ class DiffusionSampler:
         self,
         path: str,
         model_config: Optional[Dict[str, Any]] = None,
+        diffusion_config: Optional[Dict[str, Any]] = None,
+        training_temperature: Optional[float] = None,
         extra_info: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Save sampler state to checkpoint.
@@ -168,19 +170,22 @@ class DiffusionSampler:
         Args:
             path: Path to save checkpoint
             model_config: Optional model configuration dict
+            diffusion_config: Optional diffusion configuration dict
+            training_temperature: Optional training temperature
             extra_info: Optional extra information to save
         """
+        diffusion_config = diffusion_config or self.diffusion.get_config()
         checkpoint = {
             "model_state_dict": self.model.state_dict(),
             "num_steps": self.num_steps,
-            "diffusion_config": {
-                "beta_min": self.diffusion.beta_min,
-                "beta_max": self.diffusion.beta_max,
-            },
+            "diffusion_config": diffusion_config,
         }
 
         if model_config:
             checkpoint["model_config"] = model_config
+
+        if training_temperature is not None:
+            checkpoint["training_temperature"] = training_temperature
 
         if extra_info:
             checkpoint.update(extra_info)
