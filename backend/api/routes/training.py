@@ -12,6 +12,7 @@ from ...ml.checkpoints import (
     list_checkpoints as list_checkpoint_metadata,
     format_checkpoint_name,
     format_epoch_checkpoint_name,
+    find_latest_checkpoint,
 )
 
 from ...ml.systems.ising import IsingModel
@@ -257,6 +258,22 @@ async def list_checkpoints() -> List[CheckpointInfo]:
         CheckpointInfo(**checkpoint.__dict__)
         for checkpoint in list_checkpoint_metadata()
     ]
+
+
+@router.get("/checkpoints/latest", response_model=CheckpointInfo)
+async def get_latest_checkpoint(
+    lattice_size: Optional[int] = None,
+    temperature: Optional[float] = None,
+) -> CheckpointInfo:
+    """Return the latest checkpoint, optionally filtered."""
+    latest = find_latest_checkpoint(
+        lattice_size=lattice_size,
+        temperature=temperature,
+    )
+    if latest is None:
+        raise HTTPException(status_code=404, detail="No matching checkpoints found")
+
+    return CheckpointInfo(**latest.__dict__)
 
 
 class LoadCheckpointRequest(BaseModel):
