@@ -32,6 +32,9 @@ class DiffusionSampleRequest(BaseModel):
     checkpoint_path: Optional[str] = Field(
         None, description="Path to trained model checkpoint"
     )
+    checkpoint_name: Optional[str] = Field(
+        None, description="Checkpoint file name in the checkpoint directory"
+    )
     use_trained_model: bool = Field(
         False, description="Whether to use trained model if available"
     )
