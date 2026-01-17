@@ -45,6 +45,12 @@ export interface UseWebSocketOptions {
   onDone?: () => void;
   onError?: (message: string) => void;
   onStateChange?: (state: WebSocketState) => void;
+  /** Enable automatic reconnection on disconnect */
+  autoReconnect?: boolean;
+  /** Maximum number of reconnection attempts */
+  maxReconnectAttempts?: number;
+  /** Base delay between reconnection attempts (ms) */
+  reconnectDelay?: number;
 }
 
 /** Return type for useWebSocket hook */
@@ -59,7 +65,13 @@ export interface UseWebSocketReturn {
   isStreaming: boolean;
   /** Last error message if any */
   error: string | null;
+  /** Current reconnection attempt number */
+  reconnectAttempt: number;
 }
+
+/** Default reconnection settings */
+const DEFAULT_MAX_RECONNECT_ATTEMPTS = 3;
+const DEFAULT_RECONNECT_DELAY = 1000;
 
 /**
  * Hook for managing WebSocket connection to sampling endpoint.
@@ -68,13 +80,25 @@ export interface UseWebSocketReturn {
  * @returns WebSocket state and control functions
  */
 export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketReturn {
-  const { onFrame, onDone, onError, onStateChange } = options;
+  const {
+    onFrame,
+    onDone,
+    onError,
+    onStateChange,
+    autoReconnect = false,
+    maxReconnectAttempts = DEFAULT_MAX_RECONNECT_ATTEMPTS,
+    reconnectDelay = DEFAULT_RECONNECT_DELAY,
+  } = options;
 
   const [state, setState] = useState<WebSocketState>('disconnected');
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reconnectAttempt, setReconnectAttempt] = useState(0);
 
   const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<number | null>(null);
+  const lastParamsRef = useRef<SamplingParams | null>(null);
+  const manualStopRef = useRef(false);
 
   const updateState = useCallback(
     (newState: WebSocketState) => {
@@ -84,13 +108,47 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     [onStateChange]
   );
 
+  const clearReconnectTimeout = useCallback(() => {
+    if (reconnectTimeoutRef.current !== null) {
+      window.clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+  }, []);
+
+  const attemptReconnect = useCallback(() => {
+    if (
+      !autoReconnect ||
+      manualStopRef.current ||
+      reconnectAttempt >= maxReconnectAttempts ||
+      !lastParamsRef.current
+    ) {
+      return;
+    }
+
+    const attempt = reconnectAttempt + 1;
+    setReconnectAttempt(attempt);
+
+    // Exponential backoff: delay * 2^attempt
+    const delay = reconnectDelay * Math.pow(2, attempt - 1);
+
+    reconnectTimeoutRef.current = window.setTimeout(() => {
+      if (lastParamsRef.current && !manualStopRef.current) {
+        // eslint-disable-next-line @typescript-eslint/no-use-before-define
+        startSampling(lastParamsRef.current);
+      }
+    }, delay);
+  }, [autoReconnect, reconnectAttempt, maxReconnectAttempts, reconnectDelay]);
+
   const startSampling = useCallback(
     (params: SamplingParams) => {
       // Clean up existing connection
+      clearReconnectTimeout();
       if (wsRef.current) {
         wsRef.current.close();
       }
 
+      manualStopRef.current = false;
+      lastParamsRef.current = params;
       setError(null);
       updateState('connecting');
 
@@ -100,6 +158,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       ws.onopen = () => {
         updateState('connected');
         setIsStreaming(true);
+        setReconnectAttempt(0); // Reset on successful connection
         // Send sampling parameters
         ws.send(JSON.stringify(params));
       };
@@ -136,22 +195,33 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
 
       ws.onclose = (event) => {
         setIsStreaming(false);
-        if (!event.wasClean && state !== 'error') {
+        if (!event.wasClean && !manualStopRef.current) {
           updateState('disconnected');
+          attemptReconnect();
         }
       };
     },
-    [onFrame, onDone, onError, updateState, state]
+    [
+      onFrame,
+      onDone,
+      onError,
+      updateState,
+      clearReconnectTimeout,
+      attemptReconnect,
+    ]
   );
 
   const stopSampling = useCallback(() => {
+    manualStopRef.current = true;
+    clearReconnectTimeout();
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
     }
     setIsStreaming(false);
+    setReconnectAttempt(0);
     updateState('disconnected');
-  }, [updateState]);
+  }, [updateState, clearReconnectTimeout]);
 
   return {
     state,
@@ -159,6 +229,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     stopSampling,
     isStreaming,
     error,
+    reconnectAttempt,
   };
 }
 
