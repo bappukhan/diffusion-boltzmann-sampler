@@ -10,6 +10,7 @@ export { MCMCvsDiffusionComparison } from './MCMCvsDiffusionComparison';
 export type { ComparisonConfig, SamplerState } from './MCMCvsDiffusionComparison';
 export { ComparisonPanel } from './ComparisonPanel';
 export { CorrelationPlot, DistributionPlot } from './CorrelationPlot';
+export { MagnetizationHistogram } from './MagnetizationHistogram';
 export { ErrorBoundary } from './ErrorBoundary';
 export { LoadingSpinner, LoadingOverlay } from './LoadingSpinner';
 export { Toast, ToastContainer } from './Toast';
