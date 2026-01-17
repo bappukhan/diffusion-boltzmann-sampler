@@ -5,7 +5,7 @@
  * to commonly used state combinations.
  */
 
-import { useSimulationStore, T_CRITICAL } from './simulationStore';
+import { useSimulationStore, T_CRITICAL, FrameMetadata } from './simulationStore';
 
 /**
  * Get the current phase based on temperature.
@@ -153,4 +153,64 @@ export function useFrameDelay(): number {
   const playbackSpeed = useSimulationStore((state) => state.playbackSpeed);
   const baseDelay = 50; // 20fps
   return Math.round(baseDelay / playbackSpeed);
+}
+
+/**
+ * Get metadata for the current animation frame.
+ * Returns null if no animation data or current frame has no metadata.
+ */
+export function useCurrentFrameMetadata(): FrameMetadata | null {
+  return useSimulationStore((state) => {
+    const { frameMetadata, currentFrame } = state;
+    return frameMetadata[currentFrame] || null;
+  });
+}
+
+/**
+ * Get diffusion-specific metadata for current frame.
+ * Returns null if not using diffusion sampler or no data available.
+ */
+export function useDiffusionMetadata(): {
+  t: number;
+  sigma: number;
+  progress: number;
+} | null {
+  return useSimulationStore((state) => {
+    const { frameMetadata, currentFrame } = state;
+    const metadata = frameMetadata[currentFrame];
+
+    if (!metadata || metadata.sampler !== 'diffusion') {
+      return null;
+    }
+
+    return {
+      t: metadata.t ?? 1.0,
+      sigma: metadata.sigma ?? 0,
+      progress: metadata.progress ?? 0,
+    };
+  });
+}
+
+/**
+ * Get the current diffusion phase based on time t.
+ * Returns null if not using diffusion sampler.
+ */
+export function useDiffusionPhase():
+  | 'pure_noise'
+  | 'emerging'
+  | 'refining'
+  | 'crystallized'
+  | null {
+  const metadata = useDiffusionMetadata();
+
+  if (!metadata) {
+    return null;
+  }
+
+  const { t } = metadata;
+
+  if (t >= 0.8) return 'pure_noise';
+  if (t >= 0.5) return 'emerging';
+  if (t >= 0.2) return 'refining';
+  return 'crystallized';
 }

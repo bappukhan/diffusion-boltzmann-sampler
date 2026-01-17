@@ -26,4 +26,7 @@ export {
   useAbsoluteMagnetization,
   useIsDiffusionMode,
   useFrameDelay,
+  useCurrentFrameMetadata,
+  useDiffusionMetadata,
+  useDiffusionPhase,
 } from './selectors';
