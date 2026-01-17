@@ -1,10 +1,59 @@
 import React, { useEffect, useRef } from 'react';
-import { useSimulationStore } from '../store/simulationStore';
+import { useSimulationStore, FrameMetadata } from '../store/simulationStore';
 import { useFrameDelay } from '../store/selectors';
 
 interface DiffusionAnimationProps {
   onFrameChange?: (frame: number) => void;
 }
+
+/** Component to display noise level indicator for diffusion sampling */
+const NoiseLevelIndicator: React.FC<{ metadata: FrameMetadata | null }> = ({
+  metadata,
+}) => {
+  if (!metadata || metadata.sampler !== 'diffusion') {
+    return null;
+  }
+
+  const sigma = metadata.sigma ?? 0;
+  const t = metadata.t ?? 0;
+  const noisePercent = Math.min(100, sigma * 100);
+
+  return (
+    <div className="space-y-2 pt-2 border-t border-slate-700">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-slate-500">Noise Level</span>
+        <span className="text-xs font-mono text-purple-400">
+          sigma = {sigma.toFixed(3)}
+        </span>
+      </div>
+
+      {/* Noise level bar */}
+      <div className="relative h-3 bg-slate-700 rounded-full overflow-hidden">
+        <div
+          className="absolute h-full bg-gradient-to-r from-purple-600 to-pink-500 transition-all duration-150"
+          style={{ width: `${noisePercent}%` }}
+        />
+        {/* Tick marks */}
+        <div className="absolute inset-0 flex justify-between px-1">
+          {[0, 0.25, 0.5, 0.75, 1].map((tick) => (
+            <div
+              key={tick}
+              className="w-px h-full bg-slate-600 opacity-50"
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Diffusion time indicator */}
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-slate-500">t = {t.toFixed(2)}</span>
+        <span className="text-slate-500">
+          {t > 0.7 ? 'Pure noise' : t > 0.3 ? 'Denoising' : 'Crystallizing'}
+        </span>
+      </div>
+    </div>
+  );
+};
 
 const SPEED_OPTIONS = [
   { value: 0.5, label: '0.5x' },
@@ -18,6 +67,7 @@ export const DiffusionAnimation: React.FC<DiffusionAnimationProps> = ({
 }) => {
   const {
     animationFrames,
+    frameMetadata,
     currentFrame,
     isPlaying,
     playbackSpeed,
@@ -25,6 +75,8 @@ export const DiffusionAnimation: React.FC<DiffusionAnimationProps> = ({
     setIsPlaying,
     setPlaybackSpeed,
   } = useSimulationStore();
+
+  const currentMetadata = frameMetadata[currentFrame] || null;
 
   const frameDelay = useFrameDelay();
 
@@ -193,6 +245,9 @@ export const DiffusionAnimation: React.FC<DiffusionAnimationProps> = ({
           ))}
         </div>
       </div>
+
+      {/* Noise Level Indicator (diffusion only) */}
+      <NoiseLevelIndicator metadata={currentMetadata} />
     </div>
   );
 };
