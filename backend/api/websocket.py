@@ -1,13 +1,82 @@
 """WebSocket handlers for real-time sampling visualization."""
 
 import asyncio
-from typing import Dict, Any
+from typing import Dict, Any, List, Set
 
 from fastapi import WebSocket, WebSocketDisconnect
 import torch
 
 from ..ml.systems.ising import IsingModel
 from ..ml.samplers.mcmc import MetropolisHastings
+
+
+class ConnectionManager:
+    """Manage WebSocket connections for real-time updates.
+
+    Handles connection lifecycle, broadcasting, and client tracking.
+    """
+
+    def __init__(self):
+        """Initialize connection manager."""
+        self.active_connections: Set[WebSocket] = set()
+        self._lock = asyncio.Lock()
+
+    async def connect(self, websocket: WebSocket) -> None:
+        """Accept and register a new WebSocket connection.
+
+        Args:
+            websocket: The WebSocket to connect
+        """
+        await websocket.accept()
+        async with self._lock:
+            self.active_connections.add(websocket)
+
+    async def disconnect(self, websocket: WebSocket) -> None:
+        """Remove a WebSocket connection.
+
+        Args:
+            websocket: The WebSocket to disconnect
+        """
+        async with self._lock:
+            self.active_connections.discard(websocket)
+
+    async def send_json(self, websocket: WebSocket, data: Dict[str, Any]) -> bool:
+        """Send JSON data to a specific WebSocket.
+
+        Args:
+            websocket: The target WebSocket
+            data: JSON-serializable data to send
+
+        Returns:
+            True if send succeeded, False if connection was lost
+        """
+        try:
+            await websocket.send_json(data)
+            return True
+        except Exception:
+            await self.disconnect(websocket)
+            return False
+
+    async def broadcast(self, data: Dict[str, Any]) -> None:
+        """Broadcast JSON data to all connected clients.
+
+        Args:
+            data: JSON-serializable data to send
+        """
+        async with self._lock:
+            connections = list(self.active_connections)
+
+        for websocket in connections:
+            await self.send_json(websocket, data)
+
+    @property
+    def connection_count(self) -> int:
+        """Return number of active connections."""
+        return len(self.active_connections)
+
+
+# Global connection manager instance
+manager = ConnectionManager()
 
 
 async def sample_websocket_handler(
@@ -26,7 +95,7 @@ async def sample_websocket_handler(
         websocket: The WebSocket connection
         state: Application state containing models
     """
-    await websocket.accept()
+    await manager.connect(websocket)
 
     try:
         # Receive parameters
@@ -48,12 +117,14 @@ async def sample_websocket_handler(
                 websocket, ising, lattice_size, num_steps
             )
 
-        await websocket.send_json({"type": "done"})
+        await manager.send_json(websocket, {"type": "done"})
 
     except WebSocketDisconnect:
         print("WebSocket disconnected")
     except Exception as e:
-        await websocket.send_json({"type": "error", "message": str(e)})
+        await manager.send_json(websocket, {"type": "error", "message": str(e)})
+    finally:
+        await manager.disconnect(websocket)
 
 
 async def _stream_mcmc_samples(
@@ -82,7 +153,8 @@ async def _stream_mcmc_samples(
             "total_steps": num_steps,
             "progress": (step + 1) / num_steps,
         }
-        await websocket.send_json(frame_data)
+        if not await manager.send_json(websocket, frame_data):
+            break  # Connection lost
         await asyncio.sleep(0.01)  # Small delay for animation
 
 
@@ -125,5 +197,6 @@ async def _stream_diffusion_samples(
             "total_steps": num_steps // yield_every + 1,
             "progress": 1.0 - t,
         }
-        await websocket.send_json(frame_data)
+        if not await manager.send_json(websocket, frame_data):
+            break  # Connection lost
         await asyncio.sleep(0.02)
