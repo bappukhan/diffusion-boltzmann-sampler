@@ -5,6 +5,10 @@
 export { IsingVisualizer } from './IsingVisualizer';
 export { ControlPanel } from './ControlPanel';
 export { DiffusionAnimation } from './DiffusionAnimation';
+export { DiffusionProgressVisualization } from './DiffusionProgressVisualization';
+export { MCMCvsDiffusionComparison } from './MCMCvsDiffusionComparison';
+export type { ComparisonConfig, SamplerState } from './MCMCvsDiffusionComparison';
+export { ComparisonPanel } from './ComparisonPanel';
 export { CorrelationPlot, DistributionPlot } from './CorrelationPlot';
 export { ErrorBoundary } from './ErrorBoundary';
 export { LoadingSpinner, LoadingOverlay } from './LoadingSpinner';
